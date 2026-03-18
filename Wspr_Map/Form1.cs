@@ -1478,7 +1478,7 @@ namespace Wspr_Map
                             bandS = get_reverse_band(RX.band);
                             bandS = " (" + bandS + ")";
                         }
-                        AccumulateMarker(pos.lat, pos.lon, RX.tx_sign + bandS, "tx");
+                        AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + bandS, "tx");
                         
 
                         i++;

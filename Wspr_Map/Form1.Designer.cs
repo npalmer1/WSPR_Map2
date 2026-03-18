@@ -138,9 +138,9 @@
             label4.Location = new Point(83, 462);
             label4.Margin = new Padding(4, 0, 4, 0);
             label4.Name = "label4";
-            label4.Size = new Size(75, 45);
+            label4.Size = new Size(77, 45);
             label4.TabIndex = 6;
-            label4.Text = "Red - my TX\r\nBlue - my RX\r\nYellow - QTH";
+            label4.Text = "Red - my TX\r\nBlue - my RX\r\nLt blue - QTH";
             // 
             // filterbutton
             // 
