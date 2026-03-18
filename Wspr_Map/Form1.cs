@@ -1091,7 +1091,6 @@ namespace Wspr_Map
 
             await addOwn();   // sets mylat / mylon
 
-
             int rxrows = table_countRX();
             int txrows = table_countTX();
             int rows = dbRows;
