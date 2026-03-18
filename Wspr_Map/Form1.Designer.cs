@@ -70,9 +70,12 @@
             label10 = new Label();
             bottomlabel = new Label();
             rightPanel = new Panel();
+            panel1 = new Panel();
+            Waitlabel = new Label();
             groupBox1.SuspendLayout();
             loadingPanel.SuspendLayout();
             rightPanel.SuspendLayout();
+            panel1.SuspendLayout();
             SuspendLayout();
             // 
             // pinlabel
@@ -469,6 +472,7 @@
             loadingPanel.Name = "loadingPanel";
             loadingPanel.Size = new Size(309, 121);
             loadingPanel.TabIndex = 25;
+            loadingPanel.Visible = false;
             // 
             // europeButton
             // 
@@ -558,12 +562,32 @@
             rightPanel.Size = new Size(162, 748);
             rightPanel.TabIndex = 31;
             // 
+            // panel1
+            // 
+            panel1.BackColor = Color.SeaShell;
+            panel1.Controls.Add(Waitlabel);
+            panel1.Location = new Point(463, 85);
+            panel1.Name = "panel1";
+            panel1.Size = new Size(303, 120);
+            panel1.TabIndex = 32;
+            panel1.Visible = false;
+            // 
+            // Waitlabel
+            // 
+            Waitlabel.AutoSize = true;
+            Waitlabel.Location = new Point(68, 56);
+            Waitlabel.Name = "Waitlabel";
+            Waitlabel.Size = new Size(152, 15);
+            Waitlabel.TabIndex = 0;
+            Waitlabel.Text = "Please wait .. updating map";
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             AutoScroll = true;
             ClientSize = new Size(1215, 757);
+            Controls.Add(panel1);
             Controls.Add(rightPanel);
             Controls.Add(bottomlabel);
             Controls.Add(loadingPanel);
@@ -579,6 +603,8 @@
             loadingPanel.PerformLayout();
             rightPanel.ResumeLayout(false);
             rightPanel.PerformLayout();
+            panel1.ResumeLayout(false);
+            panel1.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -626,5 +652,7 @@
         private Label label10;
         private Label bottomlabel;
         private Panel rightPanel;
+        private Panel panel1;
+        private Label Waitlabel;
     }
 }

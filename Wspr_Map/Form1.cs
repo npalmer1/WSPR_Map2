@@ -7,10 +7,13 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using MySql.Data.MySqlClient;
 using Security;
+using System;
 using System.Data;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;          // .NET 6+ built-in; or use Newtonsoft.Json
 using WSPR_Map;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Rebar;
 
 
 namespace Wspr_Map
@@ -30,10 +33,17 @@ namespace Wspr_Map
 
         WebView2 webView;                // if not added in designer, create in code
         bool mapReady = false;           // true once WebView2 has finished loading
+        
+        TaskCompletionSource<bool> mapReadyTcs = new TaskCompletionSource<bool>(); 
+
 
         // Accumulate markers during a filter pass, then send as one JSON batch
         private List<object> rxPoints = new List<object>();
         private List<object> txPoints = new List<object>();
+
+        //deduplicate before accumulating
+        private HashSet<string> _rxSeen = new HashSet<string>();
+        private HashSet<string> _txSeen = new HashSet<string>();
 
         MessageClass Msg = new MessageClass();
 
@@ -92,7 +102,13 @@ namespace Wspr_Map
         string user = "admin";
         string pass = "wspr";
 
+        int dbRows = 60000;
+
         bool connectionError = false;
+
+        bool gettingData = false;
+
+        private Dictionary<string, (double lat, double lon)> _locatorCache  = new Dictionary<string, (double lat, double lon)>();
 
 
         private async void Form1_Load(object sender, EventArgs e)
@@ -106,7 +122,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.2";
+            string ver = "0.2.3";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -120,22 +136,29 @@ namespace Wspr_Map
             pathcheckBox.Checked = true;
 
             // ── WebView2 setup ───────────────────────────────────────────────────────
+            gettingData = true;
             await InitWebView();
-            
+            EnsureIndexes(); //create indexes for database
+
             //webView.Dock = DockStyle.None;
             webView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
 
             rightPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
             label1.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
-                
-          
+
+
 
 
             int i = table_countRX();
+           
             if (i > 0)
-                await find_reportedRX(i);
+            {
+                await find_reportedRX(5);
+            }
             else
-                //MessageBox.Show("Database error or no data in database");
+            {
+                MessageBox.Show("Database error or no data in database");
+            }
                      
 
             if (string.IsNullOrEmpty(locator) || string.IsNullOrEmpty(call))
@@ -173,6 +196,8 @@ namespace Wspr_Map
 
             if (msg == "MAP_READY")
             {
+                mapReady = true;
+                mapReadyTcs.TrySetResult(true);  
                 Zoomlabel.Text = "Map detected";
                 return;
             }
@@ -263,85 +288,8 @@ namespace Wspr_Map
 
 
 
+
         /*private async Task InitWebView()
-        {
-            webView = new WebView2();
-            webView.DefaultBackgroundColor = this.BackColor;
-            webView.Location = new Point(-1, -15);
-            webView.Size = new Size(1021, 754);
-            webView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom
-                           | AnchorStyles.Left | AnchorStyles.Right;
-            this.Controls.Add(webView);
-            webView.BringToFront();
-
-            try
-            {
-                string webViewUserData = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "WsprMap", "WebView2");
-                Directory.CreateDirectory(webViewUserData);
-
-                var env = await CoreWebView2Environment.CreateAsync(null, webViewUserData);
-                await webView.EnsureCoreWebView2Async(env);
-            }
-            catch (Exception ex)
-            {
-                // WebView2 not installed - offer to install it
-                var result = MessageBox.Show(
-                    "WebView2 Runtime is not installed on this PC.\n\n" +
-                    "This is required for the map display.\n\n" +
-                    "Click Yes to install it now (requires internet connection),\n" +
-                    "or No to exit and install manually from:\n" +
-                    "https://developer.microsoft.com/microsoft-edge/webview2/",
-                    "WSPRmap2 - WebView2 Required",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-
-                if (result == DialogResult.Yes)
-                {
-                    // Try bundled installer first, then fall back to web download
-                    string bundled = Path.Combine(Application.StartupPath, "MicrosoftEdgeWebview2Setup.exe");
-                    if (File.Exists(bundled))
-                    {
-                        System.Diagnostics.Process.Start(bundled);
-                    }
-                    else
-                    {
-                        // Open download page in browser
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
-                            UseShellExecute = true
-                        });
-                    }
-                }
-                Application.Exit();
-                return;
-            }
-
-            // WebView2 initialised OK - continue
-            string mapFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "WsprMap");
-            Directory.CreateDirectory(mapFolder);
-
-            webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                "wspr.local", mapFolder, CoreWebView2HostResourceAccessKind.Allow);
-
-            webView.CoreWebView2.NavigationCompleted += (s, e) => { mapReady = true; };
-            webView.Source = new Uri("https://wspr.local/wspr_map.html");
-
-            loadingPanel.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
-            loadingPanel.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
-            loadingPanel.BringToFront();
-            loadingPanel.Visible = true;
-
-            while (!mapReady)
-                await Task.Delay(100);
-            await Task.Delay(100);
-        }*/
-
-        private async Task InitWebView()
         {
             webView = new WebView2();
             webView.DefaultBackgroundColor = this.BackColor;
@@ -443,17 +391,132 @@ namespace Wspr_Map
 
             loadingPanel.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
             loadingPanel.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
+            panel1.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
+            panel1.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
+            panel1.Visible = false;
             loadingPanel.BringToFront();
             loadingPanel.Visible = true;
 
             while (!mapReady)
                 await Task.Delay(100);
             await Task.Delay(100);
+        }*/
+
+        private async Task InitWebView()
+        {
+            webView = new WebView2();
+            webView.DefaultBackgroundColor = this.BackColor;
+            webView.Location = new Point(-1, -15);
+            webView.Size = new Size(1021, 754);
+            webView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom
+                           | AnchorStyles.Left | AnchorStyles.Right;
+            this.Controls.Add(webView);
+            webView.BringToFront();
+
+            try
+            {
+                string webViewUserData = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "WsprMap", "WebView2");
+                Directory.CreateDirectory(webViewUserData);
+
+                var env = await CoreWebView2Environment.CreateAsync(null, webViewUserData);
+                await webView.EnsureCoreWebView2Async(env);
+            }
+            catch (Exception ex)
+            {
+                // WebView2 not installed - offer to install it
+                var result = MessageBox.Show(
+                    "WebView2 Runtime is not installed on this PC.\n\n" +
+                    "This is required for the map display.\n\n" +
+                    "Click Yes to install it now (requires internet connection),\n" +
+                    "or No to exit and install manually from:\n" +
+                    "https://developer.microsoft.com/microsoft-edge/webview2/",
+                    "WSPRmap2 - WebView2 Required",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (result == DialogResult.Yes)
+                {
+                    // Try bundled installer first, then fall back to web download
+                    string bundled = Path.Combine(Application.StartupPath, "MicrosoftEdgeWebview2Setup.exe");
+                    if (File.Exists(bundled))
+                    {
+                        System.Diagnostics.Process.Start(bundled);
+                    }
+                    else
+                    {
+                        // Open download page in browser
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+                            UseShellExecute = true
+                        });
+                    }
+                }
+                Application.Exit();
+                return;
+            }
+
+            // Enable messaging
+            webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
+
+            // Attach handler BEFORE loading HTML
+            webView.WebMessageReceived += WebView_WebMessageReceived;
+
+            // Test message to confirm messaging works
+            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"
+                chrome.webview.postMessage('TEST MESSAGE');
+            ");
+
+            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"
+                function waitForMap() {
+                    if (window.map && typeof window.map.on === 'function') {
+                        chrome.webview.postMessage('MAP_READY');
+                        chrome.webview.postMessage('zoom:' + map.getZoom());
+                        map.on('zoomend', function() {
+                            chrome.webview.postMessage('zoom:' + map.getZoom());
+                        });
+                    } else {
+                        setTimeout(waitForMap, 200);
+                    }
+                }
+                waitForMap();
+            ");
+
+            // WebView2 initialised OK - continue
+            string mapFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "WsprMap");
+            Directory.CreateDirectory(mapFolder);
+
+            webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                "wspr.local", mapFolder, CoreWebView2HostResourceAccessKind.Allow);
+
+           // webView.CoreWebView2.NavigationCompleted += (s, e) => { mapReady = true; };
+            webView.Source = new Uri("https://wspr.local/wspr_map.html");
+
+            loadingPanel.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
+            loadingPanel.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
+            panel1.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
+            panel1.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
+            panel1.Visible = false;
+            gettingData = false;
+            loadingPanel.BringToFront();
+            loadingPanel.Visible = true;
+
+            /*while (!mapReady)
+                await Task.Delay(100);
+            await Task.Delay(100);*/
+            //R waits for MAP_READY message from JS (Leaflet confirmed ready)
+            await mapReadyTcs.Task;
+
         }
 
 
         private bool DatabaseAvailable()
         {
+            bool ok = false;
             try
             {
                 string connectionString = "server=" + server + ";user id=" + user +
@@ -462,13 +525,54 @@ namespace Wspr_Map
                 {
                     connection.Open();
                     connection.Close();
-                    return true;
+                    ok= true;
                 }
             }
             catch
             {
-                return false;
+                ok =false;
             }
+            
+            return ok;
+        }
+
+        private void EnsureIndexes()
+        {
+            try
+            {
+                string cs1 = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt";
+                using (var con = new MySqlConnection(cs1))
+                {
+                    con.Open();
+                    var cmds = new[]
+                    {
+                "CREATE INDEX IF NOT EXISTS idx_received_datetime  ON received (datetime)",
+                "CREATE INDEX IF NOT EXISTS idx_received_frequency ON received (frequency)"
+            };
+                    foreach (var sql in cmds)
+                    {
+                        using (var cmd = new MySqlCommand(sql, con))
+                            cmd.ExecuteNonQuery();
+                    }
+                }
+
+                string cs2 = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx";
+                using (var con = new MySqlConnection(cs2))
+                {
+                    con.Open();
+                    var cmds = new[]
+                    {
+                "CREATE INDEX IF NOT EXISTS idx_reported_time ON reported (time)",
+                "CREATE INDEX IF NOT EXISTS idx_reported_band ON reported (band)"
+            };
+                    foreach (var cmd_str in cmds)
+                    {
+                        using (var cmd = new MySqlCommand(cmd_str, con))
+                            cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch { }  // silently ignore - indexes are an optimisation, not critical
         }
 
         private void ShowDatabaseError(string message)
@@ -490,30 +594,41 @@ namespace Wspr_Map
 
         private async Task SendMapData()
         {
-            var payload = new
+            // Serialise on background thread so UI stays responsive
+            string json = await Task.Run(() => JsonSerializer.Serialize(new
             {
                 home = new { lat = mylat, lon = mylon, call = call },
                 rx = rxPoints,
                 tx = txPoints,
                 showPaths = pathcheckBox.Checked
-            };
+            }));
 
-            string json = JsonSerializer.Serialize(payload);
-            // Escape backticks so the template literal is safe
             json = json.Replace("\\", "\\\\").Replace("`", "\\`");
             await RunJS($"window.wsprMap.loadData(`{json}`)");
             loadingPanel.Visible = false;
+            panel1.Visible = false;
         }
+
 
 
         private void AccumulateMarker(double lat, double lon, string label, string type)
         {
-            var pt = new { lat, lon, label };
-            if (type == "rx") rxPoints.Add(pt);
-            else txPoints.Add(pt);
+            // Key on locator position, not call (same grid square = same dot)
+            string key = $"{lat:F2},{lon:F2}";
+
+            if (type == "rx")
+            {
+                if (_rxSeen.Add(key))  // Add returns false if already present
+                    rxPoints.Add(new { lat, lon, label });
+            }
+            else
+            {
+                if (_txSeen.Add(key))
+                    txPoints.Add(new { lat, lon, label });
+            }
         }
 
-       
+
 
         private async Task addOwn()
         {
@@ -842,25 +957,42 @@ namespace Wspr_Map
 
         private void filterbutton_Click(object sender, EventArgs e)
         {
+
+            filter_button_action();
+
+            //mForm.Dispose();
+        }
+        private async void filter_button_action()
+        {
+            if (gettingData)
+            {
+               
+                Msg.TMessageBox("Please wait until current map updated", "Map updating", 2500);
+                return;
+            }
             int delay = 30000;
             //MessageForm mForm = new MessageForm();
             if (periodlistBox.SelectedIndex > 9)
             {
                 delay = 50000;
             }
-            Msg.TMessageBox("Please wait....", "", delay);
-            filter_results();
+            //Msg.TMessageBox("Please wait....", "", delay);
+
+
+            panel1.Visible = true;
+            panel1.BringToFront();
+            panel1.Refresh();
+            gettingData = true;
+            await filter_results();
 
             this.Text = header; // reset title before appending call/locator
             if (call != null || call != "")
             {
-                  
+
                 this.Text += "Reports for station: " + call;
                 if (!string.IsNullOrEmpty(locator))
                     this.Text += "  at: " + locator;
             }
-
-            //mForm.Dispose();
         }
 
         private async void initial_map(int min)
@@ -869,25 +1001,29 @@ namespace Wspr_Map
             DateTime start = DateTime.Now.AddMinutes(-min);
             string to = end.ToString("yyyy-MM-dd HH:mm:00");
             string from = start.ToString("yyyy-MM-dd HH:mm:00");
-            int rows = table_countRX();
-            if (rows > 0)
+            int rxrows = table_countRX();
+            int txrows = table_countTX();
+            int rows = dbRows;
+            if (rxrows > 0 && txrows > 0 && !radioButton3.Checked && !radioButton2.Checked)
             {
-                if (radioButton1.Checked || radioButton3.Checked)
+                if (radioButton1.Checked)
                 {
+                    await Task.WhenAll(
+                        find_selectedRX(from, to, "", rows),
+                        find_selectedTX(from, to, -2, rows)
+                    );
+                }
+            }
+            else if (rxrows >0 && radioButton3.Checked) 
+            {
                     await find_selectedRX(from, to, "", rows);
-                }
-
             }
-            rows = table_countTX();
-            if (rows > 0)
+            else if (txrows >0 && radioButton2.Checked)
             {
-
-                if (radioButton1.Checked || radioButton2.Checked)
-                {
-                    await find_selectedTX(from, to, -2, rows); //-2 means all bands
-                }
-
+                await find_selectedTX(from, to, -2, rows); //-2 means all bands
             }
+
+         
         }
 
         private async Task filter_results()
@@ -903,11 +1039,11 @@ namespace Wspr_Map
                 int i = table_countRX();
                 if (i > 0)
                 {
-                    await find_reportedRX(i);
+                    await find_reportedRX(5);
                     if (!string.IsNullOrEmpty(locator))
                     {
                         // Successfully connected - hide the error panel
-                        loadingPanel.Visible = false;
+                        //loadingPanel.Visible = false;
                         this.Text = header; // reset title before appending call/locator
                         if (call != null || call != "")
                         {
@@ -928,6 +1064,8 @@ namespace Wspr_Map
 
             rxPoints.Clear();
             txPoints.Clear();
+            _rxSeen.Clear();   
+            _txSeen.Clear();  
 
             DateTime dtNow = DateTime.Now.ToUniversalTime();
             DateTime dtPrev = dtNow;
@@ -953,15 +1091,31 @@ namespace Wspr_Map
 
             await addOwn();   // sets mylat / mylon
 
-            int rows = table_countRX();
-            if (rows > 0 && (radioButton1.Checked || radioButton3.Checked))
-                await find_selectedRX(prev, now, mhz, rows);
 
-            rows = table_countTX();
-            if (rows > 0 && (radioButton1.Checked || radioButton2.Checked))
-                await find_selectedTX(prev, now, band, rows);
+            int rxrows = table_countRX();
+            int txrows = table_countTX();
+            int rows = dbRows;
+            if (rxrows > 0 && txrows > 0 && !radioButton3.Checked && !radioButton2.Checked)
+            {
+                if (radioButton1.Checked)
+                {
+                    await Task.WhenAll(
+                        find_selectedRX(prev, now, mhz, rows),
+                        find_selectedTX(prev, now, band, rows)
+                    );
+                }
+            }
+            else if (rxrows > 0 && radioButton3.Checked)
+            {
+                await find_selectedRX(prev, now, mhz, rows);
+            }
+            else if (txrows > 0 && radioButton2.Checked)
+            {
+                await find_selectedTX(prev, now, band, rows); //-2 means all bands
+            }           
 
             await SendMapData();   // ← single JS call with everything
+            gettingData = false;
         }
 
 
@@ -978,27 +1132,41 @@ namespace Wspr_Map
             bool found = false;
             string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt";
 
-            int maxrows = 1000; //max rows to return
+            //int maxrows = 1000; //max rows to return
             string and = "";
             string bandstr = "";
             string q = "";
+            string distStr = "";
             if (mhz != "")
             {
                 bandstr = " AND frequency LIKE '" + mhz + "%' ";
-                and = "AND";
+                
+            }
+            else
+            {
+                bandstr = "";
             }
 
 
-            string fromstr = "";
-            if (clutterlistBox.SelectedIndex >= 0)
+                string fromstr = "0";
+            double mls = 0.0;
+            if (clutterlistBox.SelectedIndex > 0)
             {
                 fromstr = clutterlistBox.SelectedItem.ToString();
+                mls = Convert.ToDouble(fromstr);
                 if (!kmcheckBox.Checked)    //miles
                 {
-                    double km = Convert.ToDouble(fromstr);
-                    km = km * 1.60934;
-                    fromstr = km.ToString("F0");
+                    double km = mls * 1.60934;
+                    fromstr = km.ToString("F1");
                 }
+            }
+            if (mls > 0)
+            {
+                distStr = "AND distance >= '" + fromstr + "'";
+            }
+            else
+            {
+                distStr = "";
             }
 
 
@@ -1012,7 +1180,21 @@ namespace Wspr_Map
 
 
 
-                command.CommandText = "SELECT * FROM received WHERE datetime >= '" + datetime1 + "' AND datetime <= '" + datetime2 + "'" + bandstr + " AND distance >= '" + fromstr + "' ORDER BY datetime DESC";
+                command.CommandText = "SELECT tx_sign, tx_loc, band, frequency, distance FROM received WHERE datetime >= '" + datetime1 + "' AND datetime <= '" + datetime2 + "'" + bandstr + distStr+ " ORDER BY datetime DESC LIMIT "+tablecount;
+                /*command.CommandText = @"SELECT * FROM received WHERE datetime >= @from AND datetime <= @to AND (@mhz = '' OR frequency LIKE @mhzLike) AND distance >= @dist ORDER BY datetime DESC LIMIT " +tablecount;
+
+                command.Parameters.AddWithValue("@from", datetime1);
+                command.Parameters.AddWithValue("@to", datetime2);
+                command.Parameters.AddWithValue("@mhz", mhz);
+                command.Parameters.AddWithValue("@mhzLike", mhz + "%");
+                command.Parameters.AddWithValue("@dist", mls);*/
+                // Only fetch the columns you actually use
+                //command.CommandText = @"SELECT tx_sign, tx_loc, band, frequency, distance FROM received WHERE datetime >= @from AND datetime <= @to " + bandstr + distStr;
+                //command.CommandText += @" ORDER BY datetime DESC LIMIT " +tablecount;
+
+                //command.Parameters.AddWithValue("@from", datetime1);
+                //command.Parameters.AddWithValue("@to", datetime2);
+
 
 
                 MySqlDataReader Reader;
@@ -1026,21 +1208,21 @@ namespace Wspr_Map
                     if (i < tablecount)   //only show first maxrows rows, or to length of reported table
                     {
 
-                        DX.datetime = (DateTime)Reader["datetime"];
+                        //DX.datetime = (DateTime)Reader["datetime"];
                         DX.band = (Int16)Reader["band"];
 
                         DX.tx_sign = (string)Reader["tx_sign"];
                         DX.tx_loc = (string)Reader["tx_loc"];
 
                         DX.frequency = (double)Reader["frequency"];
-                        DX.power = (Int16)Reader["power"];
-                        DX.snr = (int)Reader["snr"];
-                        DX.drift = (Int16)Reader["drift"];
+                        //DX.power = (Int16)Reader["power"];
+                        //DX.snr = (int)Reader["snr"];
+                        //DX.drift = (Int16)Reader["drift"];
                         DX.distance = (int)Reader["distance"];
-                        DX.azimuth = (Int16)Reader["azimuth"];
-                        DX.reporter = (string)Reader["reporter"];
-                        DX.reporter_loc = (string)Reader["reporter_loc"];
-                        DX.dt = (float)Reader["dt"];
+                        //DX.azimuth = (Int16)Reader["azimuth"];
+                        //DX.reporter = (string)Reader["reporter"];
+                       // DX.reporter_loc = (string)Reader["reporter_loc"];
+                        //DX.dt = (float)Reader["dt"];
 
 
                         // pin removed - using Leaflet markers
@@ -1049,12 +1231,20 @@ namespace Wspr_Map
                         {
                             special = true;
                         }
+                        
                         if (DX.tx_sign != "nil rcvd" && !special)
                         {
-                            LatLng latlong = MaidenheadLocator.LocatorToLatLng(DX.tx_loc);
+                            //LatLng latlong = MaidenheadLocator.LocatorToLatLng(DX.tx_loc);
+                            if (!_locatorCache.TryGetValue(DX.tx_loc, out var pos))
+                            {
+                               var  latlong = MaidenheadLocator.LocatorToLatLng(DX.tx_loc);
+                                pos = (latlong.Lat, latlong.Long);
+                                _locatorCache[DX.tx_loc] = pos;
+                            }
+                           
 
-                            txlat = latlong.Lat;
-                            txlon = latlong.Long;
+                            //txlat = latlong.Lat;
+                            //txlon = latlong.Long;
                             bandS = "";
                             if (index == 0) //if all bands selected
                             {
@@ -1062,8 +1252,8 @@ namespace Wspr_Map
                                 bandS = " (" + bandS + ")";
                             }
 
-
-                            AccumulateMarker(txlat, txlon, DX.tx_sign + bandS, "rx");
+                            AccumulateMarker(pos.lat, pos.lon, DX.tx_sign + bandS, "rx");
+                            //AccumulateMarker(txlat, txlon, DX.tx_sign + bandS, "rx");
                         }
                         i++;
                     }
@@ -1081,7 +1271,7 @@ namespace Wspr_Map
             }
             catch
             {
-                found = false;
+                //found = false;
 
             }
 
@@ -1135,7 +1325,7 @@ namespace Wspr_Map
                 MySqlCommand command = connection.CreateCommand();
 
 
-                command.CommandText = "SELECT reporter, reporter_loc FROM received ORDER BY datetime DESC";
+                command.CommandText = "SELECT reporter, reporter_loc FROM received ORDER BY datetime DESC LIMIT "+tablecount;
                 MySqlDataReader Reader;
                 Reader = command.ExecuteReader();
 
@@ -1195,27 +1385,37 @@ namespace Wspr_Map
 
             string bandstr = "";
             string q = "";
+            string distStr = "";
             if (band == -2) //all bands
             {
-                bandstr = "-1";
-                q = ">";
+                bandstr = "";
+               
             }
             else
             {
-                bandstr = band.ToString();
-                q = "=";
+                bandstr = "AND band = '" + band.ToString() + "'";               
             }
-            string fromstr = "";
+            string fromstr = "0";
+            double mls = 0.0;
             if (clutterlistBox.SelectedIndex > 0)
             {
                 fromstr = clutterlistBox.SelectedItem.ToString();
+                mls = Convert.ToDouble(fromstr);
                 if (!kmcheckBox.Checked)    //miles
                 {
-                    double km = Convert.ToDouble(fromstr);
-                    km = km * 1.60934;
+                    double km = mls * 1.60934;                   
                     fromstr = km.ToString("F1");
-                }
+                }                
             }
+            if (mls > 0)
+            {
+                distStr = "AND distance >= '" + fromstr + "'";
+            }
+            else
+            {
+                distStr = "";
+            }
+
 
             try
             {
@@ -1226,10 +1426,17 @@ namespace Wspr_Map
                 MySqlCommand command = connection.CreateCommand();
 
 
-                command.CommandText = "SELECT * FROM reported WHERE time >= '" + time1 + "' AND time <= '" + time2 + "' AND band " + q + " '" + bandstr + "' AND distance >= '" + fromstr + "' ORDER BY time DESC";
+                command.CommandText = "SELECT rx_sign, rx_loc, band, frequency, distance FROM reported WHERE time >= '" + time1 + "' AND time <= '" + time2 + "' " + bandstr + " " + distStr + " ORDER BY time DESC LIMIT " + tablecount;
+                // Instead of COUNT(*) + loop guard, just limit in SQL:
+                //command.CommandText = "SELECT * FROM received WHERE datetime >= @from AND datetime <= @to"
+                //    + bandstr + distStr
+                //   + " ORDER BY datetime DESC LIMIT 1000";
 
+                /*command.CommandText = @"SELECT rx_sign, rx_loc, band, frequency, distance FROM reported WHERE time >= @time1 AND time <= @time2 " + bandstr + distStr;
+                command.CommandText += @" ORDER BY datetime DESC LIMIT "+tablecount;
 
-
+                command.Parameters.AddWithValue("@from", time1);
+                command.Parameters.AddWithValue("@to", time2);*/
 
                 MySqlDataReader Reader;
                 Reader = command.ExecuteReader();
@@ -1242,25 +1449,28 @@ namespace Wspr_Map
                     if (i < tablecount)   //only show first maxrows rows, or to length of reported table
                     {
 
-                        RX.time = (DateTime)Reader["time"];
+                        //RX.time = (DateTime)Reader["time"];
                         RX.band = (Int16)Reader["band"];
                         RX.rx_sign = (string)Reader["rx_sign"];
                         RX.rx_loc = (string)Reader["rx_loc"];
-                        RX.tx_sign = (string)Reader["tx_sign"];
-                        RX.tx_loc = (string)Reader["tx_loc"];
+                        //RX.tx_sign = (string)Reader["tx_sign"];
+                        //RX.tx_loc = (string)Reader["tx_loc"];
                         RX.distance = (int)Reader["distance"];
-                        RX.azimuth = (int)Reader["azimuth"];
+                        //RX.azimuth = (int)Reader["azimuth"];
                         RX.frequency = (int)Reader["frequency"];
-                        RX.power = (Int16)Reader["power"];
-                        RX.snr = (Int16)Reader["snr"];
-                        RX.drift = (Int16)Reader["drift"];
-                        RX.version = (string)Reader["version"];
+                        //RX.power = (Int16)Reader["power"];
+                        //RX.snr = (Int16)Reader["snr"];
+                        //RX.drift = (Int16)Reader["drift"];
+                        //RX.version = (string)Reader["version"];
 
 
-                        LatLng latlong = MaidenheadLocator.LocatorToLatLng(RX.rx_loc);
+                        if (!_locatorCache.TryGetValue(RX.rx_loc, out var pos))
+                        {
+                            var latlong = MaidenheadLocator.LocatorToLatLng(RX.rx_loc);
+                            pos = (latlong.Lat, latlong.Long);
+                            _locatorCache[RX.rx_loc] = pos;
+                        }
 
-                        rxlat = latlong.Lat;
-                        rxlon = latlong.Long;
 
                         // pin removed - using Leaflet markers
                         bandS = "";
@@ -1269,7 +1479,8 @@ namespace Wspr_Map
                             bandS = get_reverse_band(RX.band);
                             bandS = " (" + bandS + ")";
                         }
-                        AccumulateMarker(rxlat, rxlon, RX.rx_sign + bandS, "tx");
+                        AccumulateMarker(pos.lat, pos.lon, RX.tx_sign + bandS, "tx");
+                        
 
                         i++;
                     }
@@ -1303,9 +1514,9 @@ namespace Wspr_Map
 
         }
 
-        private void pathcheckBox_CheckedChanged(object sender, EventArgs e)
+        private async void pathcheckBox_CheckedChanged(object sender, EventArgs e)
         {
-            filter_results();   // just redraw; JS handles show/hide via showPaths flag
+            await filter_results();   // just redraw; JS handles show/hide via showPaths flag
         }
 
         private void gmap_MouseClick(object sender, MouseEventArgs e)
@@ -1505,7 +1716,14 @@ namespace Wspr_Map
 
         private async void timer1_Tick(object sender, EventArgs e)
         {
-            filter_results();
+            if (!autocheckBox.Checked || gettingData)
+            {
+                return;
+            }
+            panel1.Visible = true;
+            panel1.BringToFront();
+            panel1.Refresh();
+            await filter_results();
             recentre();
             if (call != null || call != "")
             {
@@ -1515,7 +1733,7 @@ namespace Wspr_Map
             this.Text = "Reports for station: " + call;
             if (!string.IsNullOrEmpty(locator))
                 this.Text += "  at: " + locator;
-            this.Text += "                  " + header;
+            this.Text += "                  " + header;           
         }
 
         private void europeButton_Click(object sender, EventArgs e)
