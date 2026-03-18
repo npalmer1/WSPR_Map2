@@ -102,7 +102,7 @@ namespace Wspr_Map
         string user = "admin";
         string pass = "wspr";
 
-        int dbRows = 60000;
+        int dbRows = 300000;
 
         bool connectionError = false;
 
@@ -159,7 +159,13 @@ namespace Wspr_Map
             {
                 MessageBox.Show("Database error or no data in database");
             }
-                     
+            
+            /*int t = table_countTX();    //max rows in RTX table
+            if (i > t)
+            {
+                dbRows = i;
+            }
+            else { dbRows = t; }*/
 
             if (string.IsNullOrEmpty(locator) || string.IsNullOrEmpty(call))
             {
