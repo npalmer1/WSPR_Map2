@@ -1601,7 +1601,7 @@ namespace Wspr_Map
         {
             if (autocheckBox.Checked)
             {
-                periodlistBox.SelectedIndex = 4;  //120 mins default
+                periodlistBox.SelectedIndex = 5;  //180 mins default
                 //bandlistBox.SelectedIndex = 0;
                 //clutterlistBox.SelectedIndex = 1;
                 pathcheckBox.Checked = true;
