@@ -122,7 +122,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.3";
+            string ver = "0.2.4";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -295,119 +295,7 @@ namespace Wspr_Map
 
 
 
-        /*private async Task InitWebView()
-        {
-            webView = new WebView2();
-            webView.DefaultBackgroundColor = this.BackColor;
-            webView.Location = new Point(-1, -15);
-            webView.Size = new Size(1021, 754);
-            webView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom
-                           | AnchorStyles.Left | AnchorStyles.Right;
-            this.Controls.Add(webView);
-            webView.BringToFront();
-
-            try
-            {
-                string webViewUserData = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "WsprMap", "WebView2");
-                Directory.CreateDirectory(webViewUserData);
-
-                var env = await CoreWebView2Environment.CreateAsync(null, webViewUserData);
-                await webView.EnsureCoreWebView2Async(env);
-            }
-            catch (Exception ex)
-            {
-                // WebView2 not installed - offer to install it
-                var result = MessageBox.Show(
-                    "WebView2 Runtime is not installed on this PC.\n\n" +
-                    "This is required for the map display.\n\n" +
-                    "Click Yes to install it now (requires internet connection),\n" +
-                    "or No to exit and install manually from:\n" +
-                    "https://developer.microsoft.com/microsoft-edge/webview2/",
-                    "WSPRmap2 - WebView2 Required",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-
-                if (result == DialogResult.Yes)
-                {
-                    // Try bundled installer first, then fall back to web download
-                    string bundled = Path.Combine(Application.StartupPath, "MicrosoftEdgeWebview2Setup.exe");
-                    if (File.Exists(bundled))
-                    {
-                        System.Diagnostics.Process.Start(bundled);
-                    }
-                    else
-                    {
-                        // Open download page in browser
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
-                            UseShellExecute = true
-                        });
-                    }
-                }
-                Application.Exit();
-                return;
-            }
-
-            // Enable messaging
-            webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
-
-            // Attach handler BEFORE loading HTML
-            webView.WebMessageReceived += WebView_WebMessageReceived;
-
-            // Test message to confirm messaging works
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"
-                chrome.webview.postMessage('TEST MESSAGE');
-            ");
-
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"
-                function waitForMap() {
-                    if (window.map && typeof window.map.on === 'function') {
-
-                        chrome.webview.postMessage('MAP_READY');
-
-                        // Send initial zoom level immediately
-                        chrome.webview.postMessage('zoom:' + map.getZoom());
-
-                        // Attach zoom listener
-                        map.on('zoomend', function() {
-                            chrome.webview.postMessage('zoom:' + map.getZoom());
-                        });
-
-                    } else {
-                        setTimeout(waitForMap, 200);
-                    }
-                }
-                waitForMap();
-            ");
-
-            // WebView2 initialised OK - continue
-            string mapFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "WsprMap");
-            Directory.CreateDirectory(mapFolder);
-
-            webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                "wspr.local", mapFolder, CoreWebView2HostResourceAccessKind.Allow);
-
-            webView.CoreWebView2.NavigationCompleted += (s, e) => { mapReady = true; };
-            webView.Source = new Uri("https://wspr.local/wspr_map.html");
-
-            loadingPanel.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
-            loadingPanel.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
-            panel1.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
-            panel1.Top = (this.ClientSize.Height - loadingPanel.Height) / 2;
-            panel1.Visible = false;
-            loadingPanel.BringToFront();
-            loadingPanel.Visible = true;
-
-            while (!mapReady)
-                await Task.Delay(100);
-            await Task.Delay(100);
-        }*/
-
+      
         private async Task InitWebView()
         {
             webView = new WebView2();
@@ -1205,6 +1093,7 @@ namespace Wspr_Map
                 MySqlDataReader Reader;
                 Reader = command.ExecuteReader();
                 string bandS = "";
+                string txloc = "";
                 int index = bandlistBox.SelectedIndex;
                 while (Reader.Read())
                 {
@@ -1218,7 +1107,7 @@ namespace Wspr_Map
 
                         DX.tx_sign = (string)Reader["tx_sign"];
                         DX.tx_loc = (string)Reader["tx_loc"];
-
+                        txloc = DX.tx_loc;
                         DX.frequency = (double)Reader["frequency"];
                         //DX.power = (Int16)Reader["power"];
                         //DX.snr = (int)Reader["snr"];
@@ -1256,8 +1145,10 @@ namespace Wspr_Map
                                 bandS = get_reverse_band(DX.band);
                                 bandS = " (" + bandS + ")";
                             }
-
-                            AccumulateMarker(pos.lat, pos.lon, DX.tx_sign + bandS, "rx");
+                            if (txloc != "")
+                            {
+                                AccumulateMarker(pos.lat, pos.lon, DX.tx_sign + bandS, "rx");
+                            }
                             //AccumulateMarker(txlat, txlon, DX.tx_sign + bandS, "rx");
                         }
                         i++;
@@ -1391,6 +1282,7 @@ namespace Wspr_Map
             string bandstr = "";
             string q = "";
             string distStr = "";
+            string rxloc = "";
             if (band == -2) //all bands
             {
                 bandstr = "";
@@ -1458,6 +1350,7 @@ namespace Wspr_Map
                         RX.band = (Int16)Reader["band"];
                         RX.rx_sign = (string)Reader["rx_sign"];
                         RX.rx_loc = (string)Reader["rx_loc"];
+                        rxloc = RX.rx_loc;
                         //RX.tx_sign = (string)Reader["tx_sign"];
                         //RX.tx_loc = (string)Reader["tx_loc"];
                         RX.distance = (int)Reader["distance"];
@@ -1484,7 +1377,10 @@ namespace Wspr_Map
                             bandS = get_reverse_band(RX.band);
                             bandS = " (" + bandS + ")";
                         }
-                        AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + bandS, "tx");
+                        if (rxloc != "")
+                        {
+                            AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + bandS, "tx");
+                        }
                         
 
                         i++;
