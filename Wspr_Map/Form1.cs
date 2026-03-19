@@ -131,7 +131,7 @@ namespace Wspr_Map
             passtextBox.Text = pass;
             radioButton1.Checked = true;
             bandlistBox.SelectedIndex = 0;
-            periodlistBox.SelectedIndex = 4;
+            periodlistBox.SelectedIndex = 5;
             clutterlistBox.SelectedIndex = 0;
             pathcheckBox.Checked = true;
 
