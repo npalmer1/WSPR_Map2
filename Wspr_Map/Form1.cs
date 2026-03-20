@@ -3,16 +3,24 @@
 // removed: using GMap.NET.WindowsForms;
 // removed: using GMap.NET.WindowsForms.Markers;
 using Maidenhead;
+using Microsoft.VisualBasic.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using MySql.Data.MySqlClient;
+using Org.BouncyCastle.Pqc.Crypto.Lms;
 using Security;
 using System;
+using System.ComponentModel;
+using System.Configuration;
 using System.Data;
+using System.DirectoryServices.ActiveDirectory;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
 using System.Text.Json;          // .NET 6+ built-in; or use Newtonsoft.Json
+using System.Windows.Forms;
 using WSPR_Map;
+using static Org.BouncyCastle.Asn1.Cmp.Challenge;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Rebar;
 
 
@@ -27,14 +35,14 @@ namespace Wspr_Map
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = true;
             this.MinimizeBox = true;
-           
+
         }
 
 
         WebView2 webView;                // if not added in designer, create in code
         bool mapReady = false;           // true once WebView2 has finished loading
-        
-        TaskCompletionSource<bool> mapReadyTcs = new TaskCompletionSource<bool>(); 
+
+        TaskCompletionSource<bool> mapReadyTcs = new TaskCompletionSource<bool>();
 
 
         // Accumulate markers during a filter pass, then send as one JSON batch
@@ -97,10 +105,16 @@ namespace Wspr_Map
         string call = "";
         double mylat;
         double mylon;
+        double origlat;
+        double origlon;
 
         string server = "127.0.0.1";
         string user = "admin";
         string pass = "wspr";
+
+        string prevcall = "";
+        string tempcall = "";
+        string temploc = "";
 
         int dbRows = 300000;
 
@@ -108,14 +122,16 @@ namespace Wspr_Map
 
         bool gettingData = false;
 
-        private Dictionary<string, (double lat, double lon)> _locatorCache  = new Dictionary<string, (double lat, double lon)>();
+        int liveLimit = 5000;
+
+        private Dictionary<string, (double lat, double lon)> _locatorCache = new Dictionary<string, (double lat, double lon)>();
 
 
         private async void Form1_Load(object sender, EventArgs e)
         {
             webViewInstall();
             EnsureMapFiles();
-           
+
 
             //loadinglabel.Text = "Initialising WSPR Scheduler Map... please wait";
             this.FormBorderStyle = FormBorderStyle.Sizable;
@@ -150,7 +166,7 @@ namespace Wspr_Map
 
 
             int i = table_countRX();
-           
+
             if (i > 0)
             {
                 await find_reportedRX(5);
@@ -159,7 +175,7 @@ namespace Wspr_Map
             {
                 MessageBox.Show("Database error or no data in database");
             }
-            
+
             /*int t = table_countTX();    //max rows in RTX table
             if (i > t)
             {
@@ -179,20 +195,28 @@ namespace Wspr_Map
             try
             {
                 if (call != null || call != "")
-                {                    
+                {
                     // Database loaded OK - continue normally         
-                    this.Text += "Reports for station: " + call;
-                    if (!string.IsNullOrEmpty(locator))
-                        this.Text += "  at: " + locator;
+                    setHeader(call, locator);
+                    prevcall = call;
                 }
-               
-            }
-            catch { }            
 
+            }
+            catch { }
+            liveCalltextBox.Text = call;
             if (!getUserandPassword())
                 passtextBox.Text = "";
 
             await filter_results();
+
+        }
+
+        private void setHeader(string callsign, string loc)
+        {
+            string str = "Reports for: " + callsign;
+            if (!string.IsNullOrEmpty(loc))
+                str+= "  at: " + loc;
+            headerlabel.Text = str;
 
         }
 
@@ -203,7 +227,7 @@ namespace Wspr_Map
             if (msg == "MAP_READY")
             {
                 mapReady = true;
-                mapReadyTcs.TrySetResult(true);  
+                mapReadyTcs.TrySetResult(true);
                 Zoomlabel.Text = "Map detected";
                 return;
             }
@@ -295,7 +319,7 @@ namespace Wspr_Map
 
 
 
-      
+
         private async Task InitWebView()
         {
             webView = new WebView2();
@@ -387,7 +411,7 @@ namespace Wspr_Map
             webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 "wspr.local", mapFolder, CoreWebView2HostResourceAccessKind.Allow);
 
-           // webView.CoreWebView2.NavigationCompleted += (s, e) => { mapReady = true; };
+            // webView.CoreWebView2.NavigationCompleted += (s, e) => { mapReady = true; };
             webView.Source = new Uri("https://wspr.local/wspr_map.html");
 
             loadingPanel.Left = (this.ClientSize.Width - loadingPanel.Width) / 2;
@@ -404,6 +428,7 @@ namespace Wspr_Map
             await Task.Delay(100);*/
             //R waits for MAP_READY message from JS (Leaflet confirmed ready)
             await mapReadyTcs.Task;
+            //webView.CoreWebView2.OpenDevToolsWindow();
 
         }
 
@@ -419,14 +444,14 @@ namespace Wspr_Map
                 {
                     connection.Open();
                     connection.Close();
-                    ok= true;
+                    ok = true;
                 }
             }
             catch
             {
-                ok =false;
+                ok = false;
             }
-            
+
             return ok;
         }
 
@@ -486,9 +511,86 @@ namespace Wspr_Map
             catch { /* swallow if page not ready */ }
         }
 
+        /*private async Task SendMapData()
+        {
+            double nlat= mylat;
+            double nlon = mylon;
+            if (livecheckBox.Checked)
+            {
+
+            }
+           
+                // Serialise on background thread so UI stays responsive
+                string json = await Task.Run(() => JsonSerializer.Serialize(new
+                {
+                    home = new { lat = nlat, lon = nlon, call = call },
+                    rx = rxPoints,
+                    tx = txPoints,
+                    showPaths = pathcheckBox.Checked
+                }));
+
+            json = json.Replace("\\", "\\\\").Replace("`", "\\`");
+            await RunJS($"window.wsprMap.loadData(`{json}`)");
+            loadingPanel.Visible = false;
+            panel1.Visible = false;
+        }*/
+
+        /* private async Task SendMapData()
+         {
+             double nlat = mylat;
+             double nlon = mylon;
+
+             if (livecheckBox.Checked && (rxPoints.Count > 0 || txPoints.Count > 0))
+             {
+                 // Calculate centre from average of all plotted points
+                 var allPoints = rxPoints.Concat(txPoints).ToList();
+
+                 double sumLat = allPoints.Sum(p => (double)((dynamic)p).lat);
+                 double sumLon = allPoints.Sum(p => (double)((dynamic)p).lon);
+
+                 nlat = sumLat / allPoints.Count;
+                 nlon = sumLon / allPoints.Count;
+             }
+
+             // Serialise on background thread so UI stays responsive
+             string json = await Task.Run(() => JsonSerializer.Serialize(new
+             {
+                 home = new { lat = mylat, lon = mylon, call = call },  // home stays as own station
+                 centre = new { lat = nlat, lon = nlon },               // map centre = midpoint
+                 rx = rxPoints,
+                 tx = txPoints,
+                 showPaths = pathcheckBox.Checked
+             }));
+
+             json = json.Replace("\\", "\\\\").Replace("`", "\\`");
+             await RunJS($"window.wsprMap.loadData(`{json}`)");
+             loadingPanel.Visible = false;
+             panel1.Visible = false;
+         }*/
+        /*private async Task SendMapData()
+        {
+            string json = await Task.Run(() => JsonSerializer.Serialize(new
+            {
+                home = new { lat = mylat, lon = mylon, call = call },
+                rx = rxPoints,
+                tx = txPoints,
+                showPaths = pathcheckBox.Checked
+            }));
+
+            json = json.Replace("\\", "\\\\").Replace("`", "\\`");
+
+            if (livecheckBox.Checked)
+            {
+                await RunJS($"window.wsprMap.centreOn({newlat}, {newlon}, 2)");
+            }
+
+            await RunJS($"window.wsprMap.loadData(`{json}`)");
+            loadingPanel.Visible = false;
+            panel1.Visible = false;
+        }*/
+
         private async Task SendMapData()
         {
-            // Serialise on background thread so UI stays responsive
             string json = await Task.Run(() => JsonSerializer.Serialize(new
             {
                 home = new { lat = mylat, lon = mylon, call = call },
@@ -499,10 +601,11 @@ namespace Wspr_Map
 
             json = json.Replace("\\", "\\\\").Replace("`", "\\`");
             await RunJS($"window.wsprMap.loadData(`{json}`)");
+            await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
+           
             loadingPanel.Visible = false;
             panel1.Visible = false;
         }
-
 
 
         private void AccumulateMarker(double lat, double lon, string label, string type)
@@ -524,7 +627,7 @@ namespace Wspr_Map
 
 
 
-        private async Task addOwn()
+        private async Task addOwn(string locator)
         {
 
             if (string.IsNullOrEmpty(locator)) return;  // don't plot 0,0
@@ -585,6 +688,11 @@ namespace Wspr_Map
             {
                 return 0;
             }
+        }
+        private string find_band_wavelength(int bandno)
+        {
+            string b = "";
+            return b;
         }
 
         private string find_band()
@@ -860,18 +968,10 @@ namespace Wspr_Map
         {
             if (gettingData)
             {
-               
+
                 Msg.TMessageBox("Please wait until current map updated", "Map updating", 2500);
                 return;
             }
-            int delay = 30000;
-            //MessageForm mForm = new MessageForm();
-            if (periodlistBox.SelectedIndex > 9)
-            {
-                delay = 50000;
-            }
-            //Msg.TMessageBox("Please wait....", "", delay);
-
 
             panel1.Visible = true;
             panel1.BringToFront();
@@ -879,14 +979,7 @@ namespace Wspr_Map
             gettingData = true;
             await filter_results();
 
-            this.Text = header; // reset title before appending call/locator
-            if (call != null || call != "")
-            {
-
-                this.Text += "Reports for station: " + call;
-                if (!string.IsNullOrEmpty(locator))
-                    this.Text += "  at: " + locator;
-            }
+           
         }
 
         private async void initial_map(int min)
@@ -908,19 +1001,19 @@ namespace Wspr_Map
                     );
                 }
             }
-            else if (rxrows >0 && radioButton3.Checked) 
+            else if (rxrows > 0 && radioButton3.Checked)
             {
-                    await find_selectedRX(from, to, "", rows);
+                await find_selectedRX(from, to, "", rows);
             }
-            else if (txrows >0 && radioButton2.Checked)
+            else if (txrows > 0 && radioButton2.Checked)
             {
                 await find_selectedTX(from, to, -2, rows); //-2 means all bands
             }
 
-         
+
         }
 
-        private async Task filter_results()
+        /*private async Task filter_resultsOLD()
         {
             if (!DatabaseAvailable())
             {
@@ -942,8 +1035,8 @@ namespace Wspr_Map
                         if (call != null || call != "")
                         {
                             this.Text += "Reports for station: " + call;
-                          
-                                this.Text += "  at: " + locator;
+
+                            this.Text += "  at: " + locator;
                         }
                     }
                 }
@@ -958,8 +1051,8 @@ namespace Wspr_Map
 
             rxPoints.Clear();
             txPoints.Clear();
-            _rxSeen.Clear();   
-            _txSeen.Clear();  
+            _rxSeen.Clear();
+            _txSeen.Clear();
 
             DateTime dtNow = DateTime.Now.ToUniversalTime();
             DateTime dtPrev = dtNow;
@@ -1005,9 +1098,136 @@ namespace Wspr_Map
             else if (txrows > 0 && radioButton2.Checked)
             {
                 await find_selectedTX(prev, now, band, rows); //-2 means all bands
-            }           
+            }
 
             await SendMapData();   // ← single JS call with everything
+            gettingData = false;
+        }*/
+
+
+        private async Task RedrawMapData()
+        {
+            rxPoints.Clear();
+            txPoints.Clear();
+            _rxSeen.Clear();
+            _txSeen.Clear();
+            // ... rebuild points without changing mylat/mylon ...
+        }
+        private async Task filter_results()
+        {
+            // In live mode we don't need the local DB
+            if (!livecheckBox.Checked && !DatabaseAvailable())
+            {
+                ShowDatabaseError("Database unavailable - press Apply to retry");
+                return;
+            }
+
+            // If locator not yet found (DB was down on startup), try again now
+            if (string.IsNullOrEmpty(locator) || string.IsNullOrEmpty(call))
+            {
+                int i = table_countRX();
+                if (i > 0)
+                {
+                    await find_reportedRX(5);
+                   
+                }
+            }
+
+            // If still no locator, nothing to plot
+            if (string.IsNullOrEmpty(locator))
+            {
+                MessageBox.Show("Cannot load map - locator not found in database.", "WSPR Map");
+                return;
+            }
+
+            rxPoints.Clear();
+            txPoints.Clear();
+            _rxSeen.Clear();
+            _txSeen.Clear();
+
+            
+            double p = findPeriod();
+            if (livecheckBox.Checked)
+            {
+                double mins = p * 60;
+                if (p > 24)
+                {
+                    Msg.TMessageBox("WSPR Live max period 24 hrs - defaulting to 24 hrs", "Selected period", 3000);
+                    mins = 24 * 60;
+                }
+              
+                string minStr = "0";
+                double mindistance = 0.0;
+                if (clutterlistBox.SelectedIndex > 0)
+                {
+                    minStr = clutterlistBox.SelectedItem.ToString();
+                    mindistance = Convert.ToDouble(minStr);
+                    if (!kmcheckBox.Checked)    //miles
+                    {
+                        mindistance = mindistance * 1.60934;
+                        minStr = mindistance.ToString("F1");
+                    }
+                }
+                int selectedBand = -2;
+                selectedBand = get_band(bandlistBox.SelectedIndex);
+                // Live mode - replace local DB results entirely
+                await Task.WhenAll(
+                            GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand,"tx"),  // spots of TX
+                            GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "rx")  // RX spots
+                        );
+            }
+            else
+            {
+                mylat = origlat;
+                mylon = origlon;
+                await addOwn(locator);   // sets mylat / mylon
+                // Local DB mode - unchanged
+                DateTime dtNow = DateTime.Now.ToUniversalTime();
+                DateTime dtPrev = dtNow;
+                
+                if (p > 0 && p < 1) dtPrev = dtPrev.AddMinutes(-p * 60);
+                else if (p >= 1 && p < 24) dtPrev = dtPrev.AddHours(-p);
+                else if (p == 24) dtPrev = dtPrev.AddDays(-1);
+                else if (p == 48) dtPrev = dtPrev.AddDays(-2);
+                else if (p == 96) dtPrev = dtPrev.AddDays(-4);
+                else if (p == 168) dtPrev = dtPrev.AddDays(-7);
+                else if (p == 240) dtPrev = dtPrev.AddDays(-10);
+                else if (p == 336) dtPrev = dtPrev.AddDays(-14);
+                else if (p == 504) dtPrev = dtPrev.AddDays(-21);
+                else if (p == 672) dtPrev = dtPrev.AddDays(-28);
+                else dtPrev = dtNow;
+
+                string now = dtNow.ToString("yyyy-MM-dd HH:mm:00");
+                string prev = dtPrev.ToString("yyyy-MM-dd HH:mm:00");
+                string mhz = find_band();
+                int band = get_band(bandlistBox.SelectedIndex);
+
+                int rxrows = table_countRX();
+                int txrows = table_countTX();
+                int rows = dbRows;
+
+                if (rxrows > 0 && txrows > 0 && !radioButton3.Checked && !radioButton2.Checked)
+                {
+                    if (radioButton1.Checked)
+                    {
+                        await Task.WhenAll(
+                            find_selectedRX(prev, now, mhz, rows),
+                            find_selectedTX(prev, now, band, rows)
+                        );
+                    }
+                }
+                else if (rxrows > 0 && radioButton3.Checked)
+                {
+                    await find_selectedRX(prev, now, mhz, rows);
+                }
+                else if (txrows > 0 && radioButton2.Checked)
+                {
+                    await find_selectedTX(prev, now, band, rows);
+                }
+            }
+
+            await SendMapData();
+            await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
             gettingData = false;
         }
 
@@ -1033,7 +1253,7 @@ namespace Wspr_Map
             if (mhz != "")
             {
                 bandstr = " AND frequency LIKE '" + mhz + "%' ";
-                
+
             }
             else
             {
@@ -1041,7 +1261,7 @@ namespace Wspr_Map
             }
 
 
-                string fromstr = "0";
+            string fromstr = "0";
             double mls = 0.0;
             if (clutterlistBox.SelectedIndex > 0)
             {
@@ -1073,7 +1293,7 @@ namespace Wspr_Map
 
 
 
-                command.CommandText = "SELECT tx_sign, tx_loc, band, frequency, distance FROM received WHERE datetime >= '" + datetime1 + "' AND datetime <= '" + datetime2 + "'" + bandstr + distStr+ " ORDER BY datetime DESC LIMIT "+tablecount;
+                command.CommandText = "SELECT tx_sign, tx_loc, band, frequency, distance FROM received WHERE datetime >= '" + datetime1 + "' AND datetime <= '" + datetime2 + "'" + bandstr + distStr + " ORDER BY datetime DESC LIMIT " + tablecount;
                 /*command.CommandText = @"SELECT * FROM received WHERE datetime >= @from AND datetime <= @to AND (@mhz = '' OR frequency LIKE @mhzLike) AND distance >= @dist ORDER BY datetime DESC LIMIT " +tablecount;
 
                 command.Parameters.AddWithValue("@from", datetime1);
@@ -1115,7 +1335,7 @@ namespace Wspr_Map
                         DX.distance = (int)Reader["distance"];
                         //DX.azimuth = (Int16)Reader["azimuth"];
                         //DX.reporter = (string)Reader["reporter"];
-                       // DX.reporter_loc = (string)Reader["reporter_loc"];
+                        // DX.reporter_loc = (string)Reader["reporter_loc"];
                         //DX.dt = (float)Reader["dt"];
 
 
@@ -1125,17 +1345,17 @@ namespace Wspr_Map
                         {
                             special = true;
                         }
-                        
+
                         if (DX.tx_sign != "nil rcvd" && !special)
                         {
                             //LatLng latlong = MaidenheadLocator.LocatorToLatLng(DX.tx_loc);
                             if (!_locatorCache.TryGetValue(DX.tx_loc, out var pos))
                             {
-                               var  latlong = MaidenheadLocator.LocatorToLatLng(DX.tx_loc);
+                                var latlong = MaidenheadLocator.LocatorToLatLng(DX.tx_loc);
                                 pos = (latlong.Lat, latlong.Long);
                                 _locatorCache[DX.tx_loc] = pos;
                             }
-                           
+
 
                             //txlat = latlong.Lat;
                             //txlon = latlong.Long;
@@ -1175,7 +1395,10 @@ namespace Wspr_Map
 
         private bool specialCall(string call)
         {
-
+            if (!QcheckBox.Checked)
+            {
+                return false;
+            }
             if (call.StartsWith("0"))
             {
                 return true;
@@ -1221,7 +1444,7 @@ namespace Wspr_Map
                 MySqlCommand command = connection.CreateCommand();
 
 
-                command.CommandText = "SELECT reporter, reporter_loc FROM received ORDER BY datetime DESC LIMIT "+tablecount;
+                command.CommandText = "SELECT reporter, reporter_loc FROM received ORDER BY datetime DESC LIMIT " + tablecount;
                 MySqlDataReader Reader;
                 Reader = command.ExecuteReader();
 
@@ -1286,11 +1509,11 @@ namespace Wspr_Map
             if (band == -2) //all bands
             {
                 bandstr = "";
-               
+
             }
             else
             {
-                bandstr = "AND band = '" + band.ToString() + "'";               
+                bandstr = "AND band = '" + band.ToString() + "'";
             }
             string fromstr = "0";
             double mls = 0.0;
@@ -1300,9 +1523,9 @@ namespace Wspr_Map
                 mls = Convert.ToDouble(fromstr);
                 if (!kmcheckBox.Checked)    //miles
                 {
-                    double km = mls * 1.60934;                   
+                    double km = mls * 1.60934;
                     fromstr = km.ToString("F1");
-                }                
+                }
             }
             if (mls > 0)
             {
@@ -1381,7 +1604,7 @@ namespace Wspr_Map
                         {
                             AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + bandS, "tx");
                         }
-                        
+
 
                         i++;
                     }
@@ -1479,16 +1702,20 @@ namespace Wspr_Map
 
 
 
-        private void recentrebutton_Click(object sender, EventArgs e)
+        private async void recentrebutton_Click(object sender, EventArgs e)
         {
-            recentre();
+            await filter_results();
         }
-        private void recentre()
+        /*private void recentre()
         {
             _ = RunJS($"window.wsprMap.centreOn(20, {mylon}, 2)");
+        }*/
+        private void recentre()
+        {
+            _ = filter_results();
         }
 
-       
+
         private void showcheckBox_CheckedChanged(object sender, EventArgs e)
         {
             if (showcheckBox.Checked)
@@ -1625,31 +1852,284 @@ namespace Wspr_Map
             panel1.BringToFront();
             panel1.Refresh();
             await filter_results();
-            recentre();
-            if (call != null || call != "")
-            {
-                this.Text = header;
-            }
-            // Database loaded OK - continue normally         
-            this.Text = "Reports for station: " + call;
-            if (!string.IsNullOrEmpty(locator))
-                this.Text += "  at: " + locator;
-            this.Text += "                  " + header;           
+            //recentre();
+          
         }
 
-        private void europeButton_Click(object sender, EventArgs e)
+        private async void europeButton_Click(object sender, EventArgs e)
         {
             _ = RunJS("window.wsprMap.centreOn(50, 10, 3)");
+            /*await filter_results();
+            await RunJS("window.wsprMap.centreOn(50, 10, 3)");*/
         }
 
-        private void americasButton_Click(object sender, EventArgs e)
+        private async void americasButton_Click(object sender, EventArgs e)
         {
             _ = RunJS("window.wsprMap.centreOn(40, -90, 3)");
+            /*await filter_results();
+            await RunJS("window.wsprMap.centreOn(40, -90, 3)");*/
         }
 
-        private void pacificButton_Click(object sender, EventArgs e)
+        private async void pacificButton_Click(object sender, EventArgs e)
         {
             _ = RunJS("window.wsprMap.centreOn(20, 150, 3)");
+            /*await filter_results();
+            await RunJS("window.wsprMap.centreOn(20, 150, 3)");*/
+        }
+       
+
+        public async Task GetWsprLiveResults(string call, double timespanMinutes, double mindistance, int selectedBand, string txrx)
+        {
+            if (!await checkSQL())
+            {
+                MessageBox.Show("Error - unable to connect to wspr.live", "Connection Error");
+                return;
+            }
+
+            int tries = 0;
+            const int maxTries = 3;
+            string sign = "";
+            if (txrx == "tx")
+            {
+                sign = "tx_sign";
+            }
+            else //rx
+            {
+                sign = "rx_sign";
+            }
+
+         
+            while (tries <= maxTries)
+            {
+                try
+                {
+                    using var client = new HttpClient();
+                    client.Timeout = TimeSpan.FromSeconds(30);
+
+                    string baseUrl = "http://db1.wspr.live/";
+                    string sqlQuery = $"SELECT * FROM wspr.rx " +
+                                      $"WHERE " + sign + " LIKE '%" + call + "%' " +
+                                      $"AND time >= subtractMinutes(now(), {timespanMinutes}) " +
+                                      $"AND time <= subtractMinutes(now(), 2) " +
+                                      $"LIMIT {liveLimit}";
+
+                    string requestUrl = $"{baseUrl}?query={Uri.EscapeDataString(sqlQuery)}&default_format=JSONEachRow";
+
+                    using var stream = await client.GetStreamAsync(requestUrl);
+                    using var reader = new StreamReader(stream);
+
+                    bool found = false;
+                    string line;
+                  
+
+                  
+                    bool foundlocator = false;
+                    while ((line = await reader.ReadLineAsync()) != null)
+                    {
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        found = true;
+
+                        await process_data(line);
+                        //find position of new call 
+                        if (txrx == "tx")
+                        {
+                           
+                            if (RX.tx_sign != null)
+                            {
+                                if (!foundlocator)
+                                {
+                                    addOwn(RX.tx_loc);
+                                    mylat = RX.tx_lat;
+                                    mylon = RX.tx_lon;
+                                    foundlocator = true;
+                                    setHeader(RX.tx_sign, RX.tx_loc);
+                                }
+                                if (!_locatorCache.TryGetValue(RX.rx_loc, out var pos))
+                                {
+                                    var latlong = MaidenheadLocator.LocatorToLatLng(RX.rx_loc);
+                                    pos = (latlong.Lat, latlong.Long);
+                                    _locatorCache[RX.rx_loc] = pos;
+                                }
+                                string bandS = get_reverse_band(RX.band);
+                                if (RX.distance >= mindistance && (selectedBand == -2 || selectedBand == RX.band) && !specialCall(RX.rx_sign))
+                                {
+                                    AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + " "+bandS, "tx");
+                                }
+
+                            }
+                        }
+                        else
+                        {
+                           
+                            if (RX.rx_sign != null)
+                            {
+                                if (!foundlocator)
+                                {
+                                    addOwn(RX.rx_loc);
+                                    mylat = RX.rx_lat;
+                                    mylon = RX.rx_lon;
+                                    foundlocator = true;
+                                    setHeader(RX.rx_sign, RX.rx_loc);
+                                }
+                                if (!_locatorCache.TryGetValue(RX.tx_loc, out var pos))
+                                {
+                                    var latlong = MaidenheadLocator.LocatorToLatLng(RX.tx_loc);
+                                    pos = (latlong.Lat, latlong.Long);
+                                    _locatorCache[RX.tx_loc] = pos;
+                                }
+                                string bandS = get_reverse_band(RX.band);
+                                if (RX.distance >= mindistance && (selectedBand == -2 || selectedBand == RX.band) && !specialCall(RX.tx_sign))
+                                {
+                                    AccumulateMarker(pos.lat, pos.lon, RX.tx_sign + " "+bandS, "rx");
+                                }
+
+                            }
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        // No results - not an error, just nothing returned
+                        //ShowStatus($"No spots found for {call} in the last {timespanMinutes} minutes.");
+                    }
+
+                    return; // success - exit loop
+                }
+                catch (Exception ex)
+                {
+                    tries++;
+                    if (tries > maxTries)
+                    {
+                        //ShowStatus($"Failed after {maxTries} attempts: {ex.Message}");
+                        return;
+                    }
+                    await Task.Delay(800);
+                }
+            }
+        }
+
+        private async Task<bool> filter_live_results()
+        {
+
+            return true;
+        }
+        private void clearRX()
+        {
+            RX.id = 0;
+            RX.time = DateTime.MinValue;
+            RX.band = 0;
+            RX.rx_sign = "";
+            RX.rx_lat = 0;
+            RX.rx_lon = 0;
+            RX.rx_loc = "";
+            RX.tx_sign = "";
+            RX.tx_lat = 0;
+            RX.tx_lon = 0;
+            RX.tx_loc = "";
+            RX.distance = 0;
+            RX.azimuth = 0;
+            RX.rx_azimuth = 0;
+            RX.frequency = 0;
+            RX.power = 0;
+            RX.snr = 0;
+            RX.drift = 0;
+            RX.version = "";
+            RX.code = 0;
+        }
+        public async Task process_data(string data)
+        {
+            clearRX();
+            try
+            {
+                string[] R = data.Split('\t');
+                Int64.TryParse(R[0].Trim(), out RX.id);
+
+                RX.time = Convert.ToDateTime(R[1]);
+
+                Int16.TryParse(R[2], out RX.band);
+
+                RX.rx_sign = R[3];  //station rporting us
+
+                float.TryParse(R[4], out RX.rx_lat);
+
+                float.TryParse(R[5], out RX.rx_lon);
+                RX.rx_loc = R[6];
+                RX.tx_sign = R[7];
+                float.TryParse(R[8], out RX.tx_lat);
+                float.TryParse(R[9], out RX.tx_lon);
+                RX.tx_loc = R[10];
+                Int32.TryParse(R[11], out RX.distance);
+                Int32.TryParse(R[12], out RX.azimuth);
+                Int32.TryParse(R[13], out RX.rx_azimuth);
+                Int32.TryParse(R[14], out RX.frequency);
+                Int32.TryParse(R[15], out RX.power);
+
+                Int32.TryParse(R[16], out RX.snr);
+                Int32.TryParse(R[17], out RX.drift);
+
+                RX.version = R[18];
+                Int32.TryParse(R[19], out RX.code);
+            }
+            catch
+            {
+
+            }
+
+        }
+        public async Task<bool> checkSQL()
+        {
+            try
+            {
+                using var client = new HttpClient();
+                var response = await client.GetStringAsync("http://db1.wspr.live/?query=SELECT%20version()");
+                if (response != "" || response != null)
+                {
+                    return true;
+
+                }
+            }
+            catch
+            {
+                return false;
+            }
+            return false;
+        }
+
+        private async void livecheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            
+            Livepanel.Visible = livecheckBox.Checked;
+
+            if (livecheckBox.Checked)
+            {
+                if (liveCalltextBox.Text != "")
+                {
+                    Livepanel.BringToFront();
+                    Livepanel.Refresh();
+
+                }
+                else
+                {
+                    Msg.TMessageBox("Callsign empty", "Callsign", 2500);
+                } 
+                call = liveCalltextBox.Text;
+                
+            }
+            else 
+            {
+               
+                call = prevcall;
+                setHeader(call, locator);
+                filter_button_action(); 
+            }
+        }
+
+        private void livebutton_Click(object sender, EventArgs e)
+        {
+          
+            filter_button_action();
+           
         }
     }
 }

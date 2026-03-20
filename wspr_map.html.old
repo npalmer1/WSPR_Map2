@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>WSPR Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#0a1520; }
+  .wspr-tooltip {
+    background: rgba(6,13,20,0.92);
+    border: 1px solid #00c8ff;
+    color: #8ecfb0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 5px 9px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+// ── Map init ────────────────────────────────────────────────────────────────
+var map = L.map('map', {
+    center: [20, 0],
+    zoom: 2,
+    minZoom: 2,
+    maxZoom: 16,
+    worldCopyJump: false,   // we handle centering ourselves
+    zoomControl: true
+});
+    setTimeout(() => {
+        map.setZoom(5);
+    }, 2000);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    noWrap: false           // ← this is what allows infinite horizontal scroll
+}).addTo(map);
+
+// ── Layer groups ─────────────────────────────────────────────────────────────
+var rxLayer    = L.layerGroup().addTo(map);
+var txLayer    = L.layerGroup().addTo(map);
+var homeLayer  = L.layerGroup().addTo(map);
+var routeLayer = L.layerGroup().addTo(map);
+
+// ── Icon definitions ──────────────────────────────────────────────────────────
+function circleMarker(lat, lon, color, label) {
+    return L.circleMarker([lat, lon], {
+        radius: 5,
+        fillColor: color,
+        color: color,
+        weight: 1,
+        opacity: 0.9,
+        fillOpacity: 0.85
+    }).bindTooltip(label, { className: 'wspr-tooltip', sticky: true });
+}
+
+function homeMarker(lat, lon, label) {
+    var icon = L.divIcon({
+        html: '<svg width="20" height="20" viewBox="0 0 20 20">' +
+              '<circle cx="10" cy="10" r="5" fill="#00c8ff" stroke="#fff" stroke-width="1.5"/>' +
+              '<line x1="0" y1="10" x2="20" y2="10" stroke="#00c8ff" stroke-width="1.5"/>' +
+              '<line x1="10" y1="0" x2="10" y2="20" stroke="#00c8ff" stroke-width="1.5"/>' +
+              '</svg>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+        className: ''
+    });
+    return L.marker([lat, lon], { icon: icon })
+             .bindTooltip('<b style="color:#00c8ff">' + label + '</b><br>Home Station',
+                          { className: 'wspr-tooltip', sticky: true });
+}
+
+// ── Great-circle path (split at antimeridian crossing) ────────────────────────
+function addGreatCirclePath(lat1, lon1, lat2, lon2, color, showPaths) {
+    if (!showPaths) return;
+
+    // Generate intermediate points along the great circle
+    var pts = [];
+    var steps = 50;
+    var toRad = Math.PI / 180;
+    var toDeg = 180 / Math.PI;
+
+    var φ1 = lat1 * toRad, λ1 = lon1 * toRad;
+    var φ2 = lat2 * toRad, λ2 = lon2 * toRad;
+
+    var d = 2 * Math.asin(Math.sqrt(
+        Math.pow(Math.sin((φ2-φ1)/2), 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.pow(Math.sin((λ2-λ1)/2), 2)
+    ));
+
+    if (d === 0) return;
+
+    for (var i = 0; i <= steps; i++) {
+        var f = i / steps;
+        var A = Math.sin((1-f)*d) / Math.sin(d);
+        var B = Math.sin(f*d) / Math.sin(d);
+        var x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
+        var y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
+        var z = A*Math.sin(φ1) + B*Math.sin(φ2);
+        var lat = Math.atan2(z, Math.sqrt(x*x + y*y)) * toDeg;
+        var lon = Math.atan2(y, x) * toDeg;
+        pts.push([lat, lon]);
+    }
+
+    // Split at antimeridian to avoid wrap lines
+    var segments = [[]];
+    for (var j = 0; j < pts.length; j++) {
+        if (j > 0) {
+            var prev = pts[j-1][1], curr = pts[j][1];
+            if (Math.abs(curr - prev) > 180) {
+                segments.push([]);  // start new segment
+            }
+        }
+        segments[segments.length-1].push(pts[j]);
+    }
+
+    segments.forEach(function(seg) {
+        if (seg.length > 1) {
+            L.polyline(seg, {
+                color: color,
+                weight: 1,
+                opacity: 0.5,
+                dashArray: '4 5'
+            }).addTo(routeLayer);
+        }
+    });
+}
+
+// ── Public API called from C# via WebView2.ExecuteScriptAsync ────────────────
+
+window.wsprMap = {
+
+    clearAll: function() {
+        rxLayer.clearLayers();
+        txLayer.clearLayers();
+        homeLayer.clearLayers();
+        routeLayer.clearLayers();
+    },
+
+    setHome: function(lat, lon, call) {
+        homeMarker(lat, lon, call).addTo(homeLayer);
+    },
+
+    addRX: function(lat, lon, label, homeLat, homeLon, showPaths) {
+        // RX = stations we received = green
+        circleMarker(lat, lon, '#00e676', label).addTo(rxLayer);
+        addGreatCirclePath(homeLat, homeLon, lat, lon, '#00e676', showPaths);
+    },
+
+    addTX: function(lat, lon, label, homeLat, homeLon, showPaths) {
+        // TX = stations that heard us = red/orange
+        circleMarker(lat, lon, '#ff6d35', label).addTo(txLayer);
+        addGreatCirclePath(homeLat, homeLon, lat, lon, '#ff6d35', showPaths);
+    },
+
+    // Load a full data set in one call (more efficient than many small calls)
+    loadData: function(json) {
+        var data = JSON.parse(json);
+        this.clearAll();
+        if (data.home) {
+            this.setHome(data.home.lat, data.home.lon, data.home.call);
+        }
+        var self = this;
+        var hLat = data.home ? data.home.lat : 0;
+        var hLon = data.home ? data.home.lon : 0;
+        (data.rx || []).forEach(function(r) {
+            self.addRX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
+        });
+        (data.tx || []).forEach(function(r) {
+            self.addTX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
+        });
+    },
+
+    centreOn: function(lat, lon, zoom) {
+        map.setView([lat, lon], zoom || map.getZoom());
+    },
+
+    setZoom: function(z) {
+        map.setZoom(z);
+    }
+};
+
+</script>
+</body>
+</html>

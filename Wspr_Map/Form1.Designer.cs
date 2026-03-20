@@ -61,6 +61,7 @@
             label6 = new Label();
             label7 = new Label();
             groupBox1 = new GroupBox();
+            livecheckBox = new CheckBox();
             QcheckBox = new CheckBox();
             loadinglabel = new Label();
             loadingPanel = new Panel();
@@ -70,18 +71,25 @@
             label10 = new Label();
             bottomlabel = new Label();
             rightPanel = new Panel();
+            headerlabel = new Label();
+            Livepanel = new Panel();
+            label11 = new Label();
+            livebutton = new Button();
+            liveCalltextBox = new TextBox();
+            livelabel = new Label();
             panel1 = new Panel();
             Waitlabel = new Label();
             groupBox1.SuspendLayout();
             loadingPanel.SuspendLayout();
             rightPanel.SuspendLayout();
+            Livepanel.SuspendLayout();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
             // pinlabel
             // 
             pinlabel.AutoSize = true;
-            pinlabel.Location = new Point(154, 723);
+            pinlabel.Location = new Point(195, 726);
             pinlabel.Margin = new Padding(4, 0, 4, 0);
             pinlabel.Name = "pinlabel";
             pinlabel.Size = new Size(22, 15);
@@ -135,7 +143,7 @@
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(83, 462);
+            label4.Location = new Point(99, 389);
             label4.Margin = new Padding(4, 0, 4, 0);
             label4.Name = "label4";
             label4.Size = new Size(77, 45);
@@ -144,7 +152,7 @@
             // 
             // filterbutton
             // 
-            filterbutton.Location = new Point(50, 10);
+            filterbutton.Location = new Point(159, 43);
             filterbutton.Margin = new Padding(4, 3, 4, 3);
             filterbutton.Name = "filterbutton";
             filterbutton.Size = new Size(52, 23);
@@ -156,7 +164,7 @@
             // configbutton
             // 
             configbutton.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            configbutton.Location = new Point(84, 575);
+            configbutton.Location = new Point(93, 488);
             configbutton.Margin = new Padding(0);
             configbutton.Name = "configbutton";
             configbutton.Size = new Size(58, 23);
@@ -171,7 +179,7 @@
             pathcheckBox.Checked = true;
             pathcheckBox.CheckState = CheckState.Checked;
             pathcheckBox.Font = new Font("Segoe UI", 8.25F);
-            pathcheckBox.Location = new Point(20, 279);
+            pathcheckBox.Location = new Point(155, 125);
             pathcheckBox.Margin = new Padding(4, 3, 4, 3);
             pathcheckBox.Name = "pathcheckBox";
             pathcheckBox.Size = new Size(55, 17);
@@ -184,7 +192,7 @@
             // 
             radioButton1.AutoSize = true;
             radioButton1.Font = new Font("Segoe UI", 8.25F);
-            radioButton1.Location = new Point(20, 299);
+            radioButton1.Location = new Point(155, 145);
             radioButton1.Margin = new Padding(4, 3, 4, 3);
             radioButton1.Name = "radioButton1";
             radioButton1.Size = new Size(64, 17);
@@ -197,7 +205,7 @@
             // 
             radioButton2.AutoSize = true;
             radioButton2.Font = new Font("Segoe UI", 8.25F);
-            radioButton2.Location = new Point(20, 319);
+            radioButton2.Location = new Point(155, 165);
             radioButton2.Margin = new Padding(4, 3, 4, 3);
             radioButton2.Name = "radioButton2";
             radioButton2.Size = new Size(62, 17);
@@ -210,7 +218,7 @@
             // 
             radioButton3.AutoSize = true;
             radioButton3.Font = new Font("Segoe UI", 8.25F);
-            radioButton3.Location = new Point(20, 337);
+            radioButton3.Location = new Point(155, 183);
             radioButton3.Margin = new Padding(4, 3, 4, 3);
             radioButton3.Name = "radioButton3";
             radioButton3.Size = new Size(63, 17);
@@ -223,7 +231,7 @@
             // 
             label8.AutoSize = true;
             label8.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            label8.Location = new Point(8, 357);
+            label8.Location = new Point(12, 284);
             label8.Margin = new Padding(4, 0, 4, 0);
             label8.Name = "label8";
             label8.Size = new Size(58, 13);
@@ -235,7 +243,7 @@
             clutterlistBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             clutterlistBox.FormattingEnabled = true;
             clutterlistBox.Items.AddRange(new object[] { "0", "50", "100", "200", "400", "600", "800", "1000", "1200", "1500", "1800" });
-            clutterlistBox.Location = new Point(16, 373);
+            clutterlistBox.Location = new Point(20, 300);
             clutterlistBox.Margin = new Padding(4, 3, 4, 3);
             clutterlistBox.Name = "clutterlistBox";
             clutterlistBox.Size = new Size(56, 134);
@@ -245,7 +253,7 @@
             // 
             mlslabel.AutoSize = true;
             mlslabel.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            mlslabel.Location = new Point(74, 373);
+            mlslabel.Location = new Point(84, 333);
             mlslabel.Margin = new Padding(4, 0, 4, 0);
             mlslabel.Name = "mlslabel";
             mlslabel.Size = new Size(24, 13);
@@ -256,7 +264,7 @@
             // 
             kmcheckBox.AutoSize = true;
             kmcheckBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            kmcheckBox.Location = new Point(80, 417);
+            kmcheckBox.Location = new Point(89, 362);
             kmcheckBox.Margin = new Padding(4, 3, 4, 3);
             kmcheckBox.Name = "kmcheckBox";
             kmcheckBox.Size = new Size(62, 17);
@@ -269,7 +277,7 @@
             // 
             label9.AutoSize = true;
             label9.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            label9.Location = new Point(20, 560);
+            label9.Location = new Point(29, 473);
             label9.Margin = new Padding(4, 0, 4, 0);
             label9.Name = "label9";
             label9.Size = new Size(42, 13);
@@ -280,7 +288,7 @@
             // 
             Zoomlabel.AutoSize = true;
             Zoomlabel.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            Zoomlabel.Location = new Point(64, 559);
+            Zoomlabel.Location = new Point(73, 472);
             Zoomlabel.Margin = new Padding(4, 0, 4, 0);
             Zoomlabel.Name = "Zoomlabel";
             Zoomlabel.Size = new Size(13, 13);
@@ -290,7 +298,7 @@
             // recentrebutton
             // 
             recentrebutton.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            recentrebutton.Location = new Point(7, 576);
+            recentrebutton.Location = new Point(16, 489);
             recentrebutton.Margin = new Padding(4, 3, 4, 3);
             recentrebutton.Name = "recentrebutton";
             recentrebutton.Size = new Size(62, 22);
@@ -303,7 +311,7 @@
             // 
             autocheckBox.AutoSize = true;
             autocheckBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            autocheckBox.Location = new Point(29, 607);
+            autocheckBox.Location = new Point(38, 520);
             autocheckBox.Margin = new Padding(4, 3, 4, 3);
             autocheckBox.Name = "autocheckBox";
             autocheckBox.Size = new Size(79, 17);
@@ -314,7 +322,7 @@
             // 
             // timer1
             // 
-            timer1.Interval = 580000;
+            timer1.Interval = 600000;
             timer1.Tick += timer1_Tick;
             // 
             // showcheckBox
@@ -434,17 +442,29 @@
             groupBox1.Margin = new Padding(4, 3, 4, 3);
             groupBox1.Name = "groupBox1";
             groupBox1.Padding = new Padding(4, 3, 4, 3);
-            groupBox1.Size = new Size(436, 282);
+            groupBox1.Size = new Size(459, 282);
             groupBox1.TabIndex = 22;
             groupBox1.TabStop = false;
-            groupBox1.Text = "groupBox2";
+            groupBox1.Text = "Config";
             groupBox1.Visible = false;
+            // 
+            // livecheckBox
+            // 
+            livecheckBox.AutoSize = true;
+            livecheckBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            livecheckBox.Location = new Point(9, 598);
+            livecheckBox.Name = "livecheckBox";
+            livecheckBox.Size = new Size(144, 30);
+            livecheckBox.TabIndex = 26;
+            livecheckBox.Text = "interrogate wspr.live \r\nspecifying call/reporter";
+            livecheckBox.UseVisualStyleBackColor = true;
+            livecheckBox.CheckedChanged += livecheckBox_CheckedChanged;
             // 
             // QcheckBox
             // 
             QcheckBox.AutoSize = true;
             QcheckBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            QcheckBox.Location = new Point(11, 525);
+            QcheckBox.Location = new Point(20, 438);
             QcheckBox.Margin = new Padding(4, 3, 4, 3);
             QcheckBox.Name = "QcheckBox";
             QcheckBox.Size = new Size(127, 30);
@@ -467,7 +487,7 @@
             // 
             loadingPanel.BackColor = Color.SeaShell;
             loadingPanel.Controls.Add(loadinglabel);
-            loadingPanel.Location = new Point(374, 272);
+            loadingPanel.Location = new Point(490, 484);
             loadingPanel.Margin = new Padding(4, 3, 4, 3);
             loadingPanel.Name = "loadingPanel";
             loadingPanel.Size = new Size(309, 121);
@@ -477,10 +497,10 @@
             // europeButton
             // 
             europeButton.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            europeButton.Location = new Point(33, 644);
+            europeButton.Location = new Point(11, 565);
             europeButton.Margin = new Padding(4, 3, 4, 3);
             europeButton.Name = "europeButton";
-            europeButton.Size = new Size(75, 23);
+            europeButton.Size = new Size(61, 23);
             europeButton.TabIndex = 26;
             europeButton.Text = "Europe";
             europeButton.UseVisualStyleBackColor = true;
@@ -489,10 +509,10 @@
             // americasButton
             // 
             americasButton.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            americasButton.Location = new Point(33, 673);
+            americasButton.Location = new Point(80, 565);
             americasButton.Margin = new Padding(4, 3, 4, 3);
             americasButton.Name = "americasButton";
-            americasButton.Size = new Size(75, 23);
+            americasButton.Size = new Size(61, 23);
             americasButton.TabIndex = 27;
             americasButton.Text = "Americas";
             americasButton.UseVisualStyleBackColor = true;
@@ -500,10 +520,10 @@
             // 
             // pacificButton
             // 
-            pacificButton.Location = new Point(33, 702);
+            pacificButton.Location = new Point(149, 565);
             pacificButton.Margin = new Padding(4, 3, 4, 3);
             pacificButton.Name = "pacificButton";
-            pacificButton.Size = new Size(75, 23);
+            pacificButton.Size = new Size(62, 23);
             pacificButton.TabIndex = 28;
             pacificButton.Text = "Pacific";
             pacificButton.UseVisualStyleBackColor = true;
@@ -513,7 +533,7 @@
             // 
             label10.AutoSize = true;
             label10.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            label10.Location = new Point(24, 627);
+            label10.Location = new Point(12, 549);
             label10.Margin = new Padding(4, 0, 4, 0);
             label10.Name = "label10";
             label10.Size = new Size(61, 13);
@@ -532,6 +552,9 @@
             // 
             // rightPanel
             // 
+            rightPanel.Controls.Add(headerlabel);
+            rightPanel.Controls.Add(Livepanel);
+            rightPanel.Controls.Add(livecheckBox);
             rightPanel.Controls.Add(filterbutton);
             rightPanel.Controls.Add(bandlistBox);
             rightPanel.Controls.Add(label10);
@@ -559,14 +582,73 @@
             rightPanel.Controls.Add(mlslabel);
             rightPanel.Location = new Point(1033, 7);
             rightPanel.Name = "rightPanel";
-            rightPanel.Size = new Size(162, 748);
+            rightPanel.Size = new Size(245, 748);
             rightPanel.TabIndex = 31;
+            // 
+            // headerlabel
+            // 
+            headerlabel.AutoSize = true;
+            headerlabel.Location = new Point(9, 5);
+            headerlabel.Name = "headerlabel";
+            headerlabel.Size = new Size(22, 15);
+            headerlabel.TabIndex = 33;
+            headerlabel.Text = "---";
+            // 
+            // Livepanel
+            // 
+            Livepanel.Controls.Add(label11);
+            Livepanel.Controls.Add(livebutton);
+            Livepanel.Controls.Add(liveCalltextBox);
+            Livepanel.Controls.Add(livelabel);
+            Livepanel.Location = new Point(9, 634);
+            Livepanel.Name = "Livepanel";
+            Livepanel.Size = new Size(216, 89);
+            Livepanel.TabIndex = 32;
+            Livepanel.Visible = false;
+            // 
+            // label11
+            // 
+            label11.AutoSize = true;
+            label11.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            label11.Location = new Point(8, 53);
+            label11.Name = "label11";
+            label11.Size = new Size(151, 26);
+            label11.TabIndex = 33;
+            label11.Text = "Note: points may be missed \r\nif longer period selected";
+            // 
+            // livebutton
+            // 
+            livebutton.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            livebutton.Location = new Point(150, 14);
+            livebutton.Name = "livebutton";
+            livebutton.Size = new Size(52, 23);
+            livebutton.TabIndex = 32;
+            livebutton.Text = "Apply";
+            livebutton.UseVisualStyleBackColor = true;
+            livebutton.Click += livebutton_Click;
+            // 
+            // liveCalltextBox
+            // 
+            liveCalltextBox.Location = new Point(37, 14);
+            liveCalltextBox.Name = "liveCalltextBox";
+            liveCalltextBox.Size = new Size(100, 23);
+            liveCalltextBox.TabIndex = 31;
+            // 
+            // livelabel
+            // 
+            livelabel.AutoSize = true;
+            livelabel.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            livelabel.Location = new Point(3, 18);
+            livelabel.Name = "livelabel";
+            livelabel.Size = new Size(29, 13);
+            livelabel.TabIndex = 30;
+            livelabel.Text = "Call:";
             // 
             // panel1
             // 
             panel1.BackColor = Color.SeaShell;
             panel1.Controls.Add(Waitlabel);
-            panel1.Location = new Point(463, 85);
+            panel1.Location = new Point(467, 12);
             panel1.Name = "panel1";
             panel1.Size = new Size(303, 120);
             panel1.TabIndex = 32;
@@ -586,12 +668,12 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             AutoScroll = true;
-            ClientSize = new Size(1215, 757);
+            ClientSize = new Size(1279, 757);
             Controls.Add(panel1);
             Controls.Add(rightPanel);
             Controls.Add(bottomlabel);
-            Controls.Add(loadingPanel);
             Controls.Add(groupBox1);
+            Controls.Add(loadingPanel);
             Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             Margin = new Padding(4, 3, 4, 3);
             Name = "Form1";
@@ -603,6 +685,8 @@
             loadingPanel.PerformLayout();
             rightPanel.ResumeLayout(false);
             rightPanel.PerformLayout();
+            Livepanel.ResumeLayout(false);
+            Livepanel.PerformLayout();
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
             ResumeLayout(false);
@@ -654,5 +738,12 @@
         private Panel rightPanel;
         private Panel panel1;
         private Label Waitlabel;
+        private CheckBox livecheckBox;
+        private TextBox liveCalltextBox;
+        private Label livelabel;
+        private Panel Livepanel;
+        private Button livebutton;
+        private Label label11;
+        private Label headerlabel;
     }
 }

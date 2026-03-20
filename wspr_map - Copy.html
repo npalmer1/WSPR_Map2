@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="icon" href="data:,">
 <meta charset="utf-8"/>
 <title>WSPR Map</title>
 <link rel="stylesheet" href="leaflet.css"/>
@@ -29,10 +28,10 @@ var map = L.map('map', {
     zoom: 2,
     minZoom: 2,
     maxZoom: 16,
-    worldCopyJump: true,
+    worldCopyJump: false,
     zoomControl: true,
-	maxBounds: [[-90, -Infinity], [90, Infinity]],
-    maxBoundsViscosity: 0.5
+    maxBounds: [[-85, -Infinity], [85, Infinity]],
+    maxBoundsViscosity: 1.0
 });
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -144,18 +143,13 @@ function homeMarker(lat, lon, label) {
              .bindTooltip('<b style="color:#00c8ff">' + label + '</b><br>Home Station',
                           { className: 'wspr-tooltip', sticky: true });
 }
-function normaliseLon(lon, centreLon) {
-    while (lon - centreLon > 180)  lon -= 360;
-    while (centreLon - lon > 180)  lon += 360;
-    return lon;
-}
-// ── Great-circle path (split at antimeridian crossing) ────────────────────────
+
 // ── Great-circle path (split at antimeridian crossing) ────────────────────────
 function addGreatCirclePath(lat1, lon1, lat2, lon2, color, showPaths) {
     if (!showPaths) return;
 
     var pts = [];
-    var steps = 100;
+    var steps = 50;
     var toRad = Math.PI / 180;
     var toDeg = 180 / Math.PI;
 
@@ -181,20 +175,25 @@ function addGreatCirclePath(lat1, lon1, lat2, lon2, color, showPaths) {
         pts.push([lat, lon]);
     }
 
-    // Unwrap longitudes to make path continuous
-    for (var j = 1; j < pts.length; j++) {
-        var diff = pts[j][1] - pts[j-1][1];
-        if (diff > 180)  pts[j][1] -= 360;
-        if (diff < -180) pts[j][1] += 360;
+    var segments = [[]];
+    for (var j = 0; j < pts.length; j++) {
+        if (j > 0) {
+            var prev = pts[j-1][1], curr = pts[j][1];
+            if (Math.abs(curr - prev) > 180) {
+                segments.push([]);
+            }
+        }
+        segments[segments.length-1].push(pts[j]);
     }
 
-    // Draw three copies: normal, +360, -360
-    // so path is visible regardless of which world copy is shown
-    [-360, 0, 360].forEach(function(offset) {
-        var shifted = pts.map(function(p) { return [p[0], p[1] + offset]; });
-        L.polyline(shifted, {
-            color: color, weight: 1.5, opacity: 0.5
-        }).addTo(routeLayer);
+    segments.forEach(function(seg) {
+        if (seg.length > 1) {
+            L.polyline(seg, {
+                color: color,
+                weight: 1.5,
+                opacity: 0.5,
+            }).addTo(routeLayer);
+        }
     });
 }
 
@@ -212,40 +211,37 @@ window.wsprMap = {
         homeMarker(lat, lon, call).addTo(homeLayer);
     },
 
-   addRX: function(lat, lon, label, homeLat, homeLon, showPaths) {
-    addGreatCirclePath(homeLat, homeLon, lat, lon, '#00aa00', showPaths);
-    pinMarker(lat, lon, '#1a3a8f', label).addTo(rxLayer);
-    pinMarker(lat, lon + 360, '#1a3a8f', label).addTo(rxLayer);
-    pinMarker(lat, lon - 360, '#1a3a8f', label).addTo(rxLayer);
-},
+    addRX: function(lat, lon, label, homeLat, homeLon, showPaths) {
+        // RX = stations we received = dark blue pin, green path
+        pinMarker(lat, lon, '#1a3a8f', label).addTo(rxLayer);
+        addGreatCirclePath(homeLat, homeLon, lat, lon, '#00aa00', showPaths);
+    },
 
-addTX: function(lat, lon, label, homeLat, homeLon, showPaths) {
-    addGreatCirclePath(homeLat, homeLon, lat, lon, '#7b00d4', showPaths);
-    pinMarker(lat, lon, '#aa0000', label).addTo(txLayer);
-    pinMarker(lat, lon + 360, '#aa0000', label).addTo(txLayer);
-    pinMarker(lat, lon - 360, '#aa0000', label).addTo(txLayer);
-},
+    addTX: function(lat, lon, label, homeLat, homeLon, showPaths) {
+        // TX = stations that heard us = dark red pin, purple path
+        pinMarker(lat, lon, '#aa0000', label).addTo(txLayer);
+        addGreatCirclePath(homeLat, homeLon, lat, lon, '#7b00d4', showPaths);
+    },
 
-  loadData: function(json) {
-    var data = JSON.parse(json);
-    this.clearAll();
-    if (data.home) {
-        this.setHome(data.home.lat, data.home.lon, data.home.call);
-    }
-    var self = this;
-    var hLat = data.home ? data.home.lat : 0;
-    var hLon = data.home ? data.home.lon : 0;
-    (data.rx || []).forEach(function(r) {
-        self.addRX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
-    });
-    (data.tx || []).forEach(function(r) {
-        self.addTX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
-    });
-},
+    loadData: function(json) {
+        var data = JSON.parse(json);
+        this.clearAll();
+        if (data.home) {
+            this.setHome(data.home.lat, data.home.lon, data.home.call);
+        }
+        var self = this;
+        var hLat = data.home ? data.home.lat : 0;
+        var hLon = data.home ? data.home.lon : 0;
+        (data.rx || []).forEach(function(r) {
+            self.addRX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
+        });
+        (data.tx || []).forEach(function(r) {
+            self.addTX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
+        });
+    },
 
     centreOn: function(lat, lon, zoom) {
         map.setView([lat, lon], zoom || map.getZoom());
-		map.invalidateSize();
     },
 
     setZoom: function(z) {
