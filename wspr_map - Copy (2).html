@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="icon" href="data:,">
+<meta charset="utf-8"/>
+<title>WSPR Map</title>
+<link rel="stylesheet" href="leaflet.css"/>
+<style>
+  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#0a1520; }
+  .wspr-tooltip {
+    background: rgba(6,13,20,0.92);
+    border: 1px solid #00c8ff;
+    color: #8ecfb0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 5px 9px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="leaflet.js"></script>
+<script>
+
+// ── Map init ────────────────────────────────────────────────────────────────
+var map = L.map('map', {
+    center: [20, 0],
+    zoom: 2,
+    minZoom: 2,
+    maxZoom: 16,
+    worldCopyJump: true,
+    zoomControl: true,
+	maxBounds: [[-90, -Infinity], [90, Infinity]],
+    maxBoundsViscosity: 0.5
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    noWrap: false
+}).addTo(map);
+
+// ── Layer groups ─────────────────────────────────────────────────────────────
+var rxLayer    = L.layerGroup().addTo(map);
+var txLayer    = L.layerGroup().addTo(map);
+var homeLayer  = L.layerGroup().addTo(map);
+var routeLayer = L.layerGroup().addTo(map);
+
+// ── Day/Night terminator ──────────────────────────────────────────────────────
+var nightLayers = [];
+
+function drawNight() {
+    // Remove previous layers
+    nightLayers.forEach(function(l) { map.removeLayer(l); });
+    nightLayers = [];
+
+    var now = new Date();
+    var toDeg = 180 / Math.PI;
+    var toRad = Math.PI / 180;
+
+    // Solar declination and equation of time
+    var doy = Math.floor((now - new Date(now.getUTCFullYear(), 0, 0)) / 86400000);
+    var B   = (360 / 365) * (doy - 81) * toRad;
+    var dec = Math.asin(Math.sin(23.45 * toRad) * Math.sin(B)); // solar declination
+
+    // Greenwich Hour Angle of sun (longitude directly under sun)
+    var utcH = now.getUTCHours() + now.getUTCMinutes()/60 + now.getUTCSeconds()/3600;
+    var sunLon = (12 - utcH) * 15 * toRad; // radians, sun sub-point longitude
+
+    // Build terminator: for each longitude, find latitude where sun is on horizon
+    // sin(0) = sin(dec)*sin(lat) + cos(dec)*cos(lat)*cos(H)  →  lat of terminator
+    // where H = local hour angle = sunLon - pointLon
+    var termPts = [];
+    for (var i = 0; i <= 720; i++) {
+        var lon = -180 + i * 0.5;                          // step every 0.5 degrees
+        var H   = sunLon - lon * toRad;                    // hour angle at this lon
+        // terminator latitude: tan(lat) = -cos(H) / tan(dec)
+        var tanLat = -Math.cos(H) / Math.tan(dec);
+        var lat = Math.atan(tanLat) * toDeg;
+        termPts.push([lat, lon]);
+    }
+
+    // Night polygon: terminator + polar cap on the night side
+    var sunLatDeg = dec * toDeg;
+    var nightPoly;
+    if (sunLatDeg >= 0) {
+        // Sun in northern hemisphere → south pole is in darkness
+        var poly = termPts.concat([[-90, 180], [-90, -180], termPts[0]]);
+        nightPoly = poly;
+    } else {
+        // Sun in southern hemisphere → north pole is in darkness
+        var poly = termPts.concat([[90, 180], [90, -180], termPts[0]]);
+        nightPoly = poly;
+    }
+
+    var nightFill = L.polygon(nightPoly, {
+        color:       'none',
+        fillColor:   '#000820',
+        fillOpacity: 0.35,
+        stroke:      false,
+        interactive: false
+    }).addTo(map);
+
+    var termLine = L.polyline(termPts, {
+        color:       '#ffdd66',
+        weight:      1.3,
+        opacity:     0.6,
+        interactive: false
+    }).addTo(map);
+
+    nightLayers.push(nightFill, termLine);
+}
+
+drawNight();
+setInterval(drawNight, 60000); // update every minute
+
+// ── Icon definitions ──────────────────────────────────────────────────────────
+function makePinIcon(color) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="14" viewBox="0 0 8 14">' +
+              '<path d="M4 0 C1.8 0 0 1.8 0 4 C0 7 4 14 4 14 C4 14 8 7 8 4 C8 1.8 6.2 0 4 0 Z" ' +
+              'fill="' + color + '" stroke="#222" stroke-width="1"/>' +
+              '<circle cx="4" cy="4" r="1.5" fill="rgba(255,255,255,0.6)"/>' +
+              '</svg>';
+    return L.divIcon({ html: svg, iconSize: [8, 14], iconAnchor: [4, 14], className: '' });
+}
+
+function pinMarker(lat, lon, color, label) {
+    return L.marker([lat, lon], { icon: makePinIcon(color) })
+             .bindTooltip(label, { className: 'wspr-tooltip', sticky: true });
+}
+
+function homeMarker(lat, lon, label) {
+    var icon = L.divIcon({
+        html: '<svg width="20" height="20" viewBox="0 0 20 20">' +
+              '<circle cx="10" cy="10" r="5" fill="#00c8ff" stroke="#fff" stroke-width="1.5"/>' +
+              '<line x1="0" y1="10" x2="20" y2="10" stroke="#00c8ff" stroke-width="1.5"/>' +
+              '<line x1="10" y1="0" x2="10" y2="20" stroke="#00c8ff" stroke-width="1.5"/>' +
+              '</svg>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+        className: ''
+    });
+    return L.marker([lat, lon], { icon: icon })
+             .bindTooltip('<b style="color:#00c8ff">' + label + '</b><br>Home Station',
+                          { className: 'wspr-tooltip', sticky: true });
+}
+function normaliseLon(lon, centreLon) {
+    while (lon - centreLon > 180)  lon -= 360;
+    while (centreLon - lon > 180)  lon += 360;
+    return lon;
+}
+// ── Great-circle path (split at antimeridian crossing) ────────────────────────
+// ── Great-circle path (split at antimeridian crossing) ────────────────────────
+function addGreatCirclePath(lat1, lon1, lat2, lon2, color, showPaths) {
+    if (!showPaths) return;
+
+    var pts = [];
+    var steps = 100;
+    var toRad = Math.PI / 180;
+    var toDeg = 180 / Math.PI;
+
+    var φ1 = lat1 * toRad, λ1 = lon1 * toRad;
+    var φ2 = lat2 * toRad, λ2 = lon2 * toRad;
+
+    var d = 2 * Math.asin(Math.sqrt(
+        Math.pow(Math.sin((φ2-φ1)/2), 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.pow(Math.sin((λ2-λ1)/2), 2)
+    ));
+
+    if (d === 0) return;
+
+    for (var i = 0; i <= steps; i++) {
+        var f = i / steps;
+        var A = Math.sin((1-f)*d) / Math.sin(d);
+        var B = Math.sin(f*d) / Math.sin(d);
+        var x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
+        var y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
+        var z = A*Math.sin(φ1) + B*Math.sin(φ2);
+        var lat = Math.atan2(z, Math.sqrt(x*x + y*y)) * toDeg;
+        var lon = Math.atan2(y, x) * toDeg;
+        pts.push([lat, lon]);
+    }
+
+    // Unwrap longitudes to make path continuous
+    for (var j = 1; j < pts.length; j++) {
+        var diff = pts[j][1] - pts[j-1][1];
+        if (diff > 180)  pts[j][1] -= 360;
+        if (diff < -180) pts[j][1] += 360;
+    }
+
+    // Draw three copies: normal, +360, -360
+    // so path is visible regardless of which world copy is shown
+    [-360, 0, 360].forEach(function(offset) {
+        var shifted = pts.map(function(p) { return [p[0], p[1] + offset]; });
+        L.polyline(shifted, {
+            color: color, weight: 1.5, opacity: 0.5
+        }).addTo(routeLayer);
+    });
+}
+
+// ── Public API called from C# via WebView2.ExecuteScriptAsync ────────────────
+window.wsprMap = {
+
+    clearAll: function() {
+        rxLayer.clearLayers();
+        txLayer.clearLayers();
+        homeLayer.clearLayers();
+        routeLayer.clearLayers();
+    },
+
+    setHome: function(lat, lon, call) {
+        homeMarker(lat, lon, call).addTo(homeLayer);
+    },
+
+   addRX: function(lat, lon, label, homeLat, homeLon, showPaths) {
+    addGreatCirclePath(homeLat, homeLon, lat, lon, '#00aa00', showPaths);
+    pinMarker(lat, lon, '#1a3a8f', label).addTo(rxLayer);
+    pinMarker(lat, lon + 360, '#1a3a8f', label).addTo(rxLayer);
+    pinMarker(lat, lon - 360, '#1a3a8f', label).addTo(rxLayer);
+},
+
+addTX: function(lat, lon, label, homeLat, homeLon, showPaths) {
+    addGreatCirclePath(homeLat, homeLon, lat, lon, '#7b00d4', showPaths);
+    pinMarker(lat, lon, '#aa0000', label).addTo(txLayer);
+    pinMarker(lat, lon + 360, '#aa0000', label).addTo(txLayer);
+    pinMarker(lat, lon - 360, '#aa0000', label).addTo(txLayer);
+},
+
+  loadData: function(json) {
+    var data = JSON.parse(json);
+    this.clearAll();
+    if (data.home) {
+        this.setHome(data.home.lat, data.home.lon, data.home.call);
+    }
+    var self = this;
+    var hLat = data.home ? data.home.lat : 0;
+    var hLon = data.home ? data.home.lon : 0;
+    (data.rx || []).forEach(function(r) {
+        self.addRX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
+    });
+    (data.tx || []).forEach(function(r) {
+        self.addTX(r.lat, r.lon, r.label, hLat, hLon, data.showPaths);
+    });
+},
+
+    centreOn: function(lat, lon, zoom) {
+        map.setView([lat, lon], zoom || map.getZoom());
+		map.invalidateSize();
+    },
+
+    setZoom: function(z) {
+        map.setZoom(z);
+    }
+};
+
+</script>
+</body>
+</html>

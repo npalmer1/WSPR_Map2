@@ -138,7 +138,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.4";
+            string ver = "0.2.5";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -215,7 +215,7 @@ namespace Wspr_Map
         {
             string str = "Reports for: " + callsign;
             if (!string.IsNullOrEmpty(loc))
-                str+= "  at: " + loc;
+                str += "  at: " + loc;
             headerlabel.Text = str;
 
         }
@@ -602,7 +602,7 @@ namespace Wspr_Map
             json = json.Replace("\\", "\\\\").Replace("`", "\\`");
             await RunJS($"window.wsprMap.loadData(`{json}`)");
             await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
-           
+
             loadingPanel.Visible = false;
             panel1.Visible = false;
         }
@@ -979,7 +979,7 @@ namespace Wspr_Map
             gettingData = true;
             await filter_results();
 
-           
+
         }
 
         private async void initial_map(int min)
@@ -1129,7 +1129,7 @@ namespace Wspr_Map
                 if (i > 0)
                 {
                     await find_reportedRX(5);
-                   
+
                 }
             }
 
@@ -1145,7 +1145,7 @@ namespace Wspr_Map
             _rxSeen.Clear();
             _txSeen.Clear();
 
-            
+
             double p = findPeriod();
             if (livecheckBox.Checked)
             {
@@ -1155,7 +1155,7 @@ namespace Wspr_Map
                     Msg.TMessageBox("WSPR Live max period 24 hrs - defaulting to 24 hrs", "Selected period", 3000);
                     mins = 24 * 60;
                 }
-              
+
                 string minStr = "0";
                 double mindistance = 0.0;
                 if (clutterlistBox.SelectedIndex > 0)
@@ -1172,7 +1172,7 @@ namespace Wspr_Map
                 selectedBand = get_band(bandlistBox.SelectedIndex);
                 // Live mode - replace local DB results entirely
                 await Task.WhenAll(
-                            GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand,"tx"),  // spots of TX
+                            GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "tx"),  // spots of TX
                             GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "rx")  // RX spots
                         );
             }
@@ -1184,7 +1184,7 @@ namespace Wspr_Map
                 // Local DB mode - unchanged
                 DateTime dtNow = DateTime.Now.ToUniversalTime();
                 DateTime dtPrev = dtNow;
-                
+
                 if (p > 0 && p < 1) dtPrev = dtPrev.AddMinutes(-p * 60);
                 else if (p >= 1 && p < 24) dtPrev = dtPrev.AddHours(-p);
                 else if (p == 24) dtPrev = dtPrev.AddDays(-1);
@@ -1853,7 +1853,7 @@ namespace Wspr_Map
             panel1.Refresh();
             await filter_results();
             //recentre();
-          
+
         }
 
         private async void europeButton_Click(object sender, EventArgs e)
@@ -1876,7 +1876,7 @@ namespace Wspr_Map
             /*await filter_results();
             await RunJS("window.wsprMap.centreOn(20, 150, 3)");*/
         }
-       
+
 
         public async Task GetWsprLiveResults(string call, double timespanMinutes, double mindistance, int selectedBand, string txrx)
         {
@@ -1898,7 +1898,7 @@ namespace Wspr_Map
                 sign = "rx_sign";
             }
 
-         
+
             while (tries <= maxTries)
             {
                 try
@@ -1920,9 +1920,9 @@ namespace Wspr_Map
 
                     bool found = false;
                     string line;
-                  
 
-                  
+
+
                     bool foundlocator = false;
                     while ((line = await reader.ReadLineAsync()) != null)
                     {
@@ -1934,7 +1934,7 @@ namespace Wspr_Map
                         //find position of new call 
                         if (txrx == "tx")
                         {
-                           
+
                             if (RX.tx_sign != null)
                             {
                                 if (!foundlocator)
@@ -1954,14 +1954,14 @@ namespace Wspr_Map
                                 string bandS = get_reverse_band(RX.band);
                                 if (RX.distance >= mindistance && (selectedBand == -2 || selectedBand == RX.band) && !specialCall(RX.rx_sign))
                                 {
-                                    AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + " "+bandS, "tx");
+                                    AccumulateMarker(pos.lat, pos.lon, RX.rx_sign + " " + bandS, "tx");
                                 }
 
                             }
                         }
                         else
                         {
-                           
+
                             if (RX.rx_sign != null)
                             {
                                 if (!foundlocator)
@@ -1981,7 +1981,7 @@ namespace Wspr_Map
                                 string bandS = get_reverse_band(RX.band);
                                 if (RX.distance >= mindistance && (selectedBand == -2 || selectedBand == RX.band) && !specialCall(RX.tx_sign))
                                 {
-                                    AccumulateMarker(pos.lat, pos.lon, RX.tx_sign + " "+bandS, "rx");
+                                    AccumulateMarker(pos.lat, pos.lon, RX.tx_sign + " " + bandS, "rx");
                                 }
 
                             }
@@ -2098,7 +2098,7 @@ namespace Wspr_Map
 
         private async void livecheckBox_CheckedChanged(object sender, EventArgs e)
         {
-            
+
             Livepanel.Visible = livecheckBox.Checked;
 
             if (livecheckBox.Checked)
@@ -2112,24 +2112,29 @@ namespace Wspr_Map
                 else
                 {
                     Msg.TMessageBox("Callsign empty", "Callsign", 2500);
-                } 
+                }
                 call = liveCalltextBox.Text;
-                
+
             }
-            else 
+            else
             {
-               
+
                 call = prevcall;
                 setHeader(call, locator);
-                filter_button_action(); 
+                filter_button_action();
             }
         }
 
         private void livebutton_Click(object sender, EventArgs e)
         {
-          
+
             filter_button_action();
-           
+
+        }
+
+        private void liveCalltextBox_TextChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }

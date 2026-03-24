@@ -629,10 +629,12 @@
             // 
             // liveCalltextBox
             // 
+            liveCalltextBox.CharacterCasing = CharacterCasing.Upper;
             liveCalltextBox.Location = new Point(37, 14);
             liveCalltextBox.Name = "liveCalltextBox";
             liveCalltextBox.Size = new Size(100, 23);
             liveCalltextBox.TabIndex = 31;
+            liveCalltextBox.TextChanged += liveCalltextBox_TextChanged;
             // 
             // livelabel
             // 
