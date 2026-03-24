@@ -1171,17 +1171,32 @@ namespace Wspr_Map
                 int selectedBand = -2;
                 selectedBand = get_band(bandlistBox.SelectedIndex);
                 // Live mode - replace local DB results entirely
-                await Task.WhenAll(
-                            GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "tx"),  // spots of TX
+
+                if (!radioButton3.Checked && !radioButton2.Checked)
+                {
+                    if (radioButton1.Checked)
+                    {
+                        await Task.WhenAll(
+                           GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "tx"),  // TX spots
                             GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "rx")  // RX spots
                         );
+                    }
+                }
+                else if (radioButton3.Checked)
+                {
+                    await GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "rx");  // RX spots
+                }
+                else if (radioButton2.Checked)
+                {
+                    await GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "tx");  // RX spots
+                } 
             }
             else
             {
                 mylat = origlat;
                 mylon = origlon;
                 await addOwn(locator);   // sets mylat / mylon
-                // Local DB mode - unchanged
+                                         // Local DB mode - unchanged
                 DateTime dtNow = DateTime.Now.ToUniversalTime();
                 DateTime dtPrev = dtNow;
 
