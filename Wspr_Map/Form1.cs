@@ -174,7 +174,7 @@ namespace Wspr_Map
             }
             else
             {
-                MessageBox.Show("Database error or no data in database");
+               panel1.Visible = false;
             }
 
             /*int t = table_countTX();    //max rows in RTX table
@@ -433,7 +433,21 @@ namespace Wspr_Map
 
         }
 
-
+        private async Task ClearMap()
+        {
+            await webView.CoreWebView2.ExecuteScriptAsync(@"
+            if (typeof markersLayer !== 'undefined') {
+            markersLayer.clearLayers();
+            }
+            if (typeof map !== 'undefined') {
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.Circle) {
+                        map.removeLayer(layer);
+                    }
+                });
+                }
+            ");
+        }
         private bool DatabaseAvailable()
         {
             bool ok = false;
@@ -960,7 +974,7 @@ namespace Wspr_Map
 
         private void filterbutton_Click(object sender, EventArgs e)
         {
-
+            ClearMap();
             filter_button_action();
 
             //mForm.Dispose();
@@ -1120,6 +1134,8 @@ namespace Wspr_Map
             if (!livecheckBox.Checked && !DatabaseAvailable())
             {
                 ShowDatabaseError("Database unavailable - press Apply to retry");
+                gettingData = false;
+                panel1.Visible = false;
                 return;
             }
 
@@ -1135,9 +1151,11 @@ namespace Wspr_Map
             }
 
             // If still no locator, nothing to plot
-            if (string.IsNullOrEmpty(locator))
+            if (string.IsNullOrEmpty(locator) && !livecheckBox.Checked)
             {
                 MessageBox.Show("Cannot load map - locator not found in database.", "WSPR Map");
+                gettingData = false;
+                panel1.Visible = false;
                 return;
             }
 
@@ -1190,7 +1208,9 @@ namespace Wspr_Map
                 else if (radioButton2.Checked)
                 {
                     await GetWsprLiveResults(liveCalltextBox.Text, mins, mindistance, selectedBand, "tx");  // RX spots
-                } 
+                }
+                gettingData = false;
+                panel1.Visible = false;
             }
             else
             {
@@ -1245,6 +1265,7 @@ namespace Wspr_Map
             await SendMapData();
             await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
             gettingData = false;
+            panel1.Visible = false;
         }
 
 
@@ -2134,7 +2155,7 @@ namespace Wspr_Map
             }
             else
             {
-
+                ClearMap();
                 call = prevcall;
                 setHeader(call, locator);
                 filter_button_action();
@@ -2143,7 +2164,7 @@ namespace Wspr_Map
 
         private void livebutton_Click(object sender, EventArgs e)
         {
-
+            ClearMap();
             filter_button_action();
 
         }
