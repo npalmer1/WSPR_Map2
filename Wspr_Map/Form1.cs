@@ -17,6 +17,7 @@ using System.DirectoryServices.ActiveDirectory;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
+using System.Security.Policy;
 using System.Text.Json;          // .NET 6+ built-in; or use Newtonsoft.Json
 using System.Windows.Forms;
 using WSPR_Map;
@@ -138,7 +139,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.4";
+            string ver = "0.2.5";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -439,7 +440,7 @@ namespace Wspr_Map
             try
             {
                 string connectionString = "server=" + server + ";user id=" + user +
-                                          ";password=" + pass + ";database=wspr_rpt";
+                                          ";password=" + pass + ";database=wspr_rpt;SslMode=None;AllowPublicKeyRetrieval=True;";
                 using (var connection = new MySqlConnection(connectionString))
                 {
                     connection.Open();
@@ -459,7 +460,7 @@ namespace Wspr_Map
         {
             try
             {
-                string cs1 = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt";
+                string cs1 = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt;SslMode=None;AllowPublicKeyRetrieval=True;";
                 using (var con = new MySqlConnection(cs1))
                 {
                     con.Open();
@@ -475,7 +476,7 @@ namespace Wspr_Map
                     }
                 }
 
-                string cs2 = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx";
+                string cs2 = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx; SslMode = None; AllowPublicKeyRetrieval = True;" ;
                 using (var con = new MySqlConnection(cs2))
                 {
                     con.Open();
@@ -640,7 +641,7 @@ namespace Wspr_Map
         private int table_countRX()
         {
             int count;
-            string connectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt";
+            string connectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt;SslMode=None;AllowPublicKeyRetrieval=True;";
 
             try
             {
@@ -666,7 +667,7 @@ namespace Wspr_Map
         private int table_countTX()
         {
             int count;
-            string connectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx";
+            string connectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx;SslMode=None;AllowPublicKeyRetrieval=True;";
 
             try
             {
@@ -1258,7 +1259,7 @@ namespace Wspr_Map
             //DateTime d = new DateTime();
             int i = 0;
             bool found = false;
-            string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt";
+            string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt;SslMode=None;AllowPublicKeyRetrieval=True;";
 
             //int maxrows = 1000; //max rows to return
             string and = "";
@@ -1447,7 +1448,7 @@ namespace Wspr_Map
             //DateTime d = new DateTime();
             int i = 0;
             bool found = false;
-            string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt";
+            string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rpt;SslMode=None;AllowPublicKeyRetrieval=True;";
 
 
             try
@@ -1515,7 +1516,7 @@ namespace Wspr_Map
             //DateTime d = new DateTime();
             int i = 0;
             bool found = false;
-            string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx";
+            string myConnectionString = "server=" + server + ";user id=" + user + ";password=" + pass + ";database=wspr_rx;SslMode=None;AllowPublicKeyRetrieval=True;";
 
             string bandstr = "";
             string q = "";
