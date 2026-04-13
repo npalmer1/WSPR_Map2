@@ -139,7 +139,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.5";
+            string ver = "0.2.6";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -433,18 +433,12 @@ namespace Wspr_Map
 
         }
 
+     
         private async Task ClearMap()
         {
             await webView.CoreWebView2.ExecuteScriptAsync(@"
-            if (typeof markersLayer !== 'undefined') {
-            markersLayer.clearLayers();
-            }
-            if (typeof map !== 'undefined') {
-                map.eachLayer(function(layer) {
-                    if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.Circle) {
-                        map.removeLayer(layer);
-                    }
-                });
+                if (typeof markersLayer !== 'undefined') {
+                    markersLayer.clearLayers();
                 }
             ");
         }
@@ -975,6 +969,7 @@ namespace Wspr_Map
         private void filterbutton_Click(object sender, EventArgs e)
         {
             ClearMap();
+          
             filter_button_action();
 
             //mForm.Dispose();
@@ -2165,6 +2160,7 @@ namespace Wspr_Map
         private void livebutton_Click(object sender, EventArgs e)
         {
             ClearMap();
+           
             filter_button_action();
 
         }
