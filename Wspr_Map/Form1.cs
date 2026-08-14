@@ -139,7 +139,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.6";
+            string ver = "0.2.7";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -943,22 +943,26 @@ namespace Wspr_Map
                 case 6:
                     return 6;
                 case 7:
-                    return 12;
+                    return 9;
                 case 8:
-                    return 24;
+                    return 12;
                 case 9:
-                    return 48;
+                    return 18;
                 case 10:
-                    return 96;
-                case 11:
-                    return 168;
+                    return 24;
+                case11:
+                    return 48;
                 case 12:
-                    return 240;
+                    return 96;
                 case 13:
-                    return 336;
+                    return 168;
                 case 14:
-                    return 504;
+                    return 240;
                 case 15:
+                    return 336;
+                case 16:
+                    return 504;
+                case 17:
                     return 672;
                 default:
                     return 0;

@@ -100,11 +100,11 @@
             // 
             periodlistBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             periodlistBox.FormattingEnabled = true;
-            periodlistBox.Items.AddRange(new object[] { "10 mins", "20 mins", "30 mins", "1 hour", "2 hours", "3 hours", "6 hours", "12 hours", "24 hours", "2 days", "4 days", "7 days", "10 days", "14 days", "21 days", "28 days" });
+            periodlistBox.Items.AddRange(new object[] { "10 mins", "20 mins", "30 mins", "1 hour", "2 hours", "3 hours", "6 hours", "9 hours", "12 hours", "18 hours", "24 hours", "2 days", "4 days", "7 days", "10 days", "14 days", "21 days", "28 days" });
             periodlistBox.Location = new Point(17, 59);
             periodlistBox.Margin = new Padding(4, 3, 4, 3);
             periodlistBox.Name = "periodlistBox";
-            periodlistBox.Size = new Size(67, 199);
+            periodlistBox.Size = new Size(67, 212);
             periodlistBox.TabIndex = 2;
             // 
             // bandlistBox
