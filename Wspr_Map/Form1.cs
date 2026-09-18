@@ -1262,7 +1262,7 @@ namespace Wspr_Map
             }
 
             await SendMapData();
-            await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
+            //await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)"); //already done in sendmapdata
             gettingData = false;
             panel1.Visible = false;
         }
