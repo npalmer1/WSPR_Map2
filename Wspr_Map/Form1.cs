@@ -139,7 +139,7 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.8";
+            string ver = "0.2.9";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
@@ -929,15 +929,15 @@ namespace Wspr_Map
                 case -1:
                     return 0;
                 case 0:
-                    return 0.1;
+                    return 0.16666; //10 mins
                 case 1:
-                    return 0.2;
+                    return 0.33333; //20 mins
                 case 2:
                     return 0.5;
                 case 3:
                     return 1;
                 case 4:
-                    return 2;
+                    return 2;   //2 hours
                 case 5:
                     return 3;
                 case 6:
@@ -950,7 +950,7 @@ namespace Wspr_Map
                     return 18;
                 case 10:
                     return 24;
-                case11:
+                case 11:
                     return 48;
                 case 12:
                     return 96;
@@ -1027,96 +1027,6 @@ namespace Wspr_Map
 
         }
 
-        /*private async Task filter_resultsOLD()
-        {
-            if (!DatabaseAvailable())
-            {
-                ShowDatabaseError("Database unavailable - press Apply to retry");
-                return;
-            }
-            // If locator not yet found (DB was down on startup), try again now
-            if (string.IsNullOrEmpty(locator) || string.IsNullOrEmpty(call))
-            {
-                int i = table_countRX();
-                if (i > 0)
-                {
-                    await find_reportedRX(5);
-                    if (!string.IsNullOrEmpty(locator))
-                    {
-                        // Successfully connected - hide the error panel
-                        //loadingPanel.Visible = false;
-                        this.Text = header; // reset title before appending call/locator
-                        if (call != null || call != "")
-                        {
-                            this.Text += "Reports for station: " + call;
-
-                            this.Text += "  at: " + locator;
-                        }
-                    }
-                }
-            }
-
-            // If still no locator, nothing to plot
-            if (string.IsNullOrEmpty(locator))
-            {
-                MessageBox.Show("Cannot load map - locator not found in database.", "WSPR Map");
-                return;
-            }
-
-            rxPoints.Clear();
-            txPoints.Clear();
-            _rxSeen.Clear();
-            _txSeen.Clear();
-
-            DateTime dtNow = DateTime.Now.ToUniversalTime();
-            DateTime dtPrev = dtNow;
-            double p = findPeriod();
-
-            // --- same period logic as before ---
-            if (p > 0 && p < 1) dtPrev = dtPrev.AddMinutes(-p * 60);
-            else if (p >= 1 && p < 24) dtPrev = dtPrev.AddHours(-p);
-            else if (p == 24) dtPrev = dtPrev.AddDays(-1);
-            else if (p == 48) dtPrev = dtPrev.AddDays(-2);
-            else if (p == 96) dtPrev = dtPrev.AddDays(-4);
-            else if (p == 168) dtPrev = dtPrev.AddDays(-7);
-            else if (p == 240) dtPrev = dtPrev.AddDays(-10);
-            else if (p == 336) dtPrev = dtPrev.AddDays(-14);
-            else if (p == 504) dtPrev = dtPrev.AddDays(-21);
-            else if (p == 672) dtPrev = dtPrev.AddDays(-28);
-            else dtPrev = dtNow;
-
-            string now = dtNow.ToString("yyyy-MM-dd HH:mm:00");
-            string prev = dtPrev.ToString("yyyy-MM-dd HH:mm:00");
-            string mhz = find_band();
-            int band = get_band(bandlistBox.SelectedIndex);
-
-            await addOwn();   // sets mylat / mylon
-
-            int rxrows = table_countRX();
-            int txrows = table_countTX();
-            int rows = dbRows;
-            if (rxrows > 0 && txrows > 0 && !radioButton3.Checked && !radioButton2.Checked)
-            {
-                if (radioButton1.Checked)
-                {
-                    await Task.WhenAll(
-                        find_selectedRX(prev, now, mhz, rows),
-                        find_selectedTX(prev, now, band, rows)
-                    );
-                }
-            }
-            else if (rxrows > 0 && radioButton3.Checked)
-            {
-                await find_selectedRX(prev, now, mhz, rows);
-            }
-            else if (txrows > 0 && radioButton2.Checked)
-            {
-                await find_selectedTX(prev, now, band, rows); //-2 means all bands
-            }
-
-            await SendMapData();   // ← single JS call with everything
-            gettingData = false;
-        }*/
 
 
         private async Task RedrawMapData()
@@ -1165,9 +1075,10 @@ namespace Wspr_Map
 
 
             double p = findPeriod();
+            int mins = (int)Math.Ceiling(p * 60);
             if (livecheckBox.Checked)
-            {
-                double mins = p * 60;
+            {               
+               
                 if (p > 24)
                 {
                     Msg.TMessageBox("WSPR Live max period 24 hrs - defaulting to 24 hrs", "Selected period", 3000);
@@ -1220,8 +1131,11 @@ namespace Wspr_Map
                 DateTime dtNow = DateTime.Now.ToUniversalTime();
                 DateTime dtPrev = dtNow;
 
-                if (p > 0 && p < 1) dtPrev = dtPrev.AddMinutes(-p * 60);
-                else if (p >= 1 && p < 24) dtPrev = dtPrev.AddHours(-p);
+                if (p > 0 && p < 1) //10,20,30 mins
+                {   
+                    dtPrev = dtPrev.AddMinutes(-mins);
+                }
+                else if (p >= 1 && p < 24) dtPrev = dtPrev.AddHours(-p); //1 to 24 hours
                 else if (p == 24) dtPrev = dtPrev.AddDays(-1);
                 else if (p == 48) dtPrev = dtPrev.AddDays(-2);
                 else if (p == 96) dtPrev = dtPrev.AddDays(-4);
