@@ -310,6 +310,8 @@
             // autocheckBox
             // 
             autocheckBox.AutoSize = true;
+            autocheckBox.Checked = true;
+            autocheckBox.CheckState = CheckState.Checked;
             autocheckBox.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             autocheckBox.Location = new Point(38, 520);
             autocheckBox.Margin = new Padding(4, 3, 4, 3);
