@@ -129,7 +129,7 @@ namespace Wspr_Map
 
         private Dictionary<string, (double lat, double lon)> _locatorCache = new Dictionary<string, (double lat, double lon)>();
 
-
+        /*
         private async void Form1_Load(object sender, EventArgs e)
         {
             webViewInstall();
@@ -157,6 +157,8 @@ namespace Wspr_Map
 
             // ── WebView2 setup ───────────────────────────────────────────────────────
             gettingData = true;
+
+
             await InitWebView();
             EnsureIndexes(); //create indexes for database
 
@@ -180,12 +182,6 @@ namespace Wspr_Map
                panel1.Visible = false;
             }
 
-            /*int t = table_countTX();    //max rows in RTX table
-            if (i > t)
-            {
-                dbRows = i;
-            }
-            else { dbRows = t; }*/
 
             if (string.IsNullOrEmpty(locator) || string.IsNullOrEmpty(call))
             {
@@ -212,7 +208,95 @@ namespace Wspr_Map
                 passtextBox.Text = "";
 
             await filter_results();
+        }
 
+        */
+        private async void Form1_Load(object sender, EventArgs e)
+        {
+            webViewInstall();
+            EnsureMapFiles();
+
+            //loadinglabel.Text = "Initialising WSPR Scheduler Map... please wait";
+            this.FormBorderStyle = FormBorderStyle.Sizable;
+            this.MaximizeBox = true;
+            this.MinimizeBox = true;
+
+            string ver = "0.2.9";
+            header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
+            this.Text = header;
+            string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
+            //Msg.TMessageBox("Initialising WSPR Scheduler Map ... please wait", "WS Map", 25000);
+            bottomlabel.Text = info;
+            countlabel.Text = "...";
+            passtextBox.Text = pass;
+            radioButton1.Checked = true;
+            bandlistBox.SelectedIndex = 0;
+            periodlistBox.SelectedIndex = 5;
+            clutterlistBox.SelectedIndex = 0;
+            pathcheckBox.Checked = true;
+
+            // ── WebView2 setup ───────────────────────────────────────────────────────
+            gettingData = true;
+            try
+            {
+                await InitWebView();
+                EnsureIndexes(); //create indexes for database
+
+                //webView.Dock = DockStyle.None;
+                webView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+
+                rightPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+                label1.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+
+                int i = table_countRX();
+
+                if (i > 0)
+                {
+                    await find_reportedRX(5);
+                }
+                else
+                {
+                    panel1.Visible = false;
+                }
+
+                if (string.IsNullOrEmpty(locator) || string.IsNullOrEmpty(call))
+                {
+                    // Database failed or empty - update loading panel message
+                    loadinglabel.Text = "Unable to access database - press Apply to retry";
+                    loadinglabel.ForeColor = Color.Red;
+                    // Don't hide the panel - leave message visible
+                    return;  // exit early, map will be empty but visible (finally still runs)
+                }
+
+                if (!string.IsNullOrEmpty(call))
+                {
+                    // Database loaded OK - continue normally
+                    setHeader(call, locator);
+                    prevcall = call;
+                }
+                liveCalltextBox.Text = call;
+                if (!getUserandPassword())
+                    passtextBox.Text = "";
+
+                await filter_results();
+            }
+            catch (Exception ex)
+            {
+                Msg.TMessageBox("Error while loading the map: " + ex.Message, "WSPR Map", 4000);
+            }
+            finally
+            {
+                gettingData = false;   // however Form1_Load ends, the timer and Apply can run
+                panel1.Visible = false;
+
+                // Auto may already be ticked (Designer): CheckedChanged doesn't fire for that,
+                // so start the timer here - it keeps trying even if the database was down at start
+                if (autocheckBox.Checked)
+                {
+                    timer1.Enabled = true;
+                    timer1.Start();
+                }
+            }
         }
 
         private void setHeader(string callsign, string loc)
@@ -908,7 +992,7 @@ namespace Wspr_Map
 
             //mForm.Dispose();
         }
-        private async void filter_button_action()
+        /*private async void filter_button_action()
         {
             if (gettingData)
             {
@@ -924,6 +1008,37 @@ namespace Wspr_Map
             await filter_results();
 
 
+        }*/
+        private async void filter_button_action()
+        {
+            if (gettingData)
+            {
+                Msg.TMessageBox("Please wait until current map updated", "Map updating", 2500);
+                return;
+            }
+            gettingData = true;
+            panel1.Visible = true;
+            panel1.BringToFront();
+            panel1.Refresh();
+            await filter_results_safe();
+        }
+
+        private async Task filter_results_safe()    // Wrap filter_results in try/catch to prevent unhandled exceptions from crashing the app
+        {
+            try
+            {
+                await filter_results();
+            }
+            catch (Exception ex)
+            {
+                Msg.TMessageBox("Map update failed - will try again at the next update\n" + ex.Message,
+                                "Map update", 3000);
+            }
+            finally
+            {
+                gettingData = false;
+                panel1.Visible = false;
+            }
         }
 
         private async void initial_map(int min)
@@ -1724,42 +1839,52 @@ namespace Wspr_Map
             }
         }
 
-       /* private async void timer1_Tick(object sender, EventArgs e)
-        {
-            if (!autocheckBox.Checked || gettingData)
-            {
-                return;
-            }
-            panel1.Visible = true;
-            panel1.BringToFront();
-            panel1.Refresh();
-            await filter_results();
-            //recentre();
+        /* private async void timer1_Tick(object sender, EventArgs e)
+         {
+             if (!autocheckBox.Checked || gettingData)
+             {
+                 return;
+             }
+             panel1.Visible = true;
+             panel1.BringToFront();
+             panel1.Refresh();
+             await filter_results();
+             //recentre();
 
-        }*/
+         }*/
 
+        /* private async void timer1_Tick(object sender, EventArgs e)
+         {
+             if (!autocheckBox.Checked || gettingData)
+                 return;
+             gettingData = true;                 // same guard as Apply
+             panel1.Visible = true;
+             panel1.BringToFront();
+             panel1.Refresh();
+             try
+             {
+                 await ClearMap();               // start from an empty map
+                 await filter_results();
+             }
+             catch (Exception ex)
+             {
+                 bottomlabel.Text = "Auto-track update failed: " + ex.Message;
+             }
+             finally
+             {
+                 gettingData = false;            // never leave auto-track stuck
+                 panel1.Visible = false;
+             }
+         }*/
         private async void timer1_Tick(object sender, EventArgs e)
         {
             if (!autocheckBox.Checked || gettingData)
                 return;
-            gettingData = true;                 // same guard as Apply
+            gettingData = true;
             panel1.Visible = true;
             panel1.BringToFront();
             panel1.Refresh();
-            try
-            {
-                await ClearMap();               // start from an empty map
-                await filter_results();
-            }
-            catch (Exception ex)
-            {
-                bottomlabel.Text = "Auto-track update failed: " + ex.Message;
-            }
-            finally
-            {
-                gettingData = false;            // never leave auto-track stuck
-                panel1.Visible = false;
-            }
+            await filter_results_safe();
         }
 
         private async void europeButton_Click(object sender, EventArgs e)
