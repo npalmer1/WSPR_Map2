@@ -244,8 +244,10 @@ addTX: function(lat, lon, label, homeLat, homeLon, showPaths) {
 },
 
     centreOn: function(lat, lon, zoom) {
-        map.setView([lat, lon], zoom || map.getZoom());
-		map.invalidateSize();
+        // size check first, and no animation: an animated move never finishes while the window is
+        // minimised or hidden, and then new pins and paths may not be drawn (auto track)
+        map.invalidateSize();
+        map.setView([lat, lon], zoom || map.getZoom(), { animate: false });
     },
 
     setZoom: function(z) {

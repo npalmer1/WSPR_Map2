@@ -79,6 +79,7 @@
             livelabel = new Label();
             panel1 = new Panel();
             Waitlabel = new Label();
+            countlabel = new Label();
             groupBox1.SuspendLayout();
             loadingPanel.SuspendLayout();
             rightPanel.SuspendLayout();
@@ -667,12 +668,23 @@
             Waitlabel.TabIndex = 0;
             Waitlabel.Text = "Please wait .. updating map";
             // 
+            // countlabel
+            // 
+            countlabel.AutoSize = true;
+            countlabel.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            countlabel.Location = new Point(612, 740);
+            countlabel.Name = "countlabel";
+            countlabel.Size = new Size(44, 13);
+            countlabel.TabIndex = 33;
+            countlabel.Text = "label12";
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             AutoScroll = true;
             ClientSize = new Size(1279, 757);
+            Controls.Add(countlabel);
             Controls.Add(panel1);
             Controls.Add(rightPanel);
             Controls.Add(bottomlabel);
@@ -749,5 +761,6 @@
         private Button livebutton;
         private Label label11;
         private Label headerlabel;
+        private Label countlabel;
     }
 }

@@ -14,6 +14,7 @@ using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.DirectoryServices.ActiveDirectory;
+using System.Globalization;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
@@ -124,6 +125,7 @@ namespace Wspr_Map
         bool gettingData = false;
 
         int liveLimit = 5000;
+       
 
         private Dictionary<string, (double lat, double lon)> _locatorCache = new Dictionary<string, (double lat, double lon)>();
 
@@ -139,12 +141,13 @@ namespace Wspr_Map
             this.MaximizeBox = true;
             this.MinimizeBox = true;
 
-            string ver = "0.2.8";
+            string ver = "0.2.9";
             header = "WSPR Scheduler Map 2   V." + ver + "   GNU GPLv3             ";
             this.Text = header;
             string info = "...You must run WSPR Scheduler to display TX reports and WSPR Scheduler Live for RX reports";
             //Msg.TMessageBox("Initialising WSPR Scheduler Map ... please wait", "WS Map", 25000);
             bottomlabel.Text = info;
+            countlabel.Text = "...";
             passtextBox.Text = pass;
             radioButton1.Checked = true;
             bandlistBox.SelectedIndex = 0;
@@ -309,9 +312,11 @@ namespace Wspr_Map
             foreach (var file in files)
             {
                 string dest = Path.Combine(mapFolder, file);
-                string src = Path.Combine(Application.StartupPath, file);
-                if (!File.Exists(dest) && File.Exists(src))
-                    File.Copy(src, dest);
+                string src = Path.Combine(Application.StartupPath, file);               
+               // if (File.Exists(src) && (!File.Exists(dest) || File.GetLastWriteTimeUtc(src) > File.GetLastWriteTimeUtc(dest)))
+                //    File.Copy(src, dest, true);
+                if (File.Exists(src) &&  (!File.Exists(dest) || File.GetLastWriteTimeUtc(src) > File.GetLastWriteTimeUtc(dest)))
+                    File.Copy(src, dest, true);
             }
         }
 
@@ -520,84 +525,7 @@ namespace Wspr_Map
             catch { /* swallow if page not ready */ }
         }
 
-        /*private async Task SendMapData()
-        {
-            double nlat= mylat;
-            double nlon = mylon;
-            if (livecheckBox.Checked)
-            {
-
-            }
-           
-                // Serialise on background thread so UI stays responsive
-                string json = await Task.Run(() => JsonSerializer.Serialize(new
-                {
-                    home = new { lat = nlat, lon = nlon, call = call },
-                    rx = rxPoints,
-                    tx = txPoints,
-                    showPaths = pathcheckBox.Checked
-                }));
-
-            json = json.Replace("\\", "\\\\").Replace("`", "\\`");
-            await RunJS($"window.wsprMap.loadData(`{json}`)");
-            loadingPanel.Visible = false;
-            panel1.Visible = false;
-        }*/
-
-        /* private async Task SendMapData()
-         {
-             double nlat = mylat;
-             double nlon = mylon;
-
-             if (livecheckBox.Checked && (rxPoints.Count > 0 || txPoints.Count > 0))
-             {
-                 // Calculate centre from average of all plotted points
-                 var allPoints = rxPoints.Concat(txPoints).ToList();
-
-                 double sumLat = allPoints.Sum(p => (double)((dynamic)p).lat);
-                 double sumLon = allPoints.Sum(p => (double)((dynamic)p).lon);
-
-                 nlat = sumLat / allPoints.Count;
-                 nlon = sumLon / allPoints.Count;
-             }
-
-             // Serialise on background thread so UI stays responsive
-             string json = await Task.Run(() => JsonSerializer.Serialize(new
-             {
-                 home = new { lat = mylat, lon = mylon, call = call },  // home stays as own station
-                 centre = new { lat = nlat, lon = nlon },               // map centre = midpoint
-                 rx = rxPoints,
-                 tx = txPoints,
-                 showPaths = pathcheckBox.Checked
-             }));
-
-             json = json.Replace("\\", "\\\\").Replace("`", "\\`");
-             await RunJS($"window.wsprMap.loadData(`{json}`)");
-             loadingPanel.Visible = false;
-             panel1.Visible = false;
-         }*/
-        /*private async Task SendMapData()
-        {
-            string json = await Task.Run(() => JsonSerializer.Serialize(new
-            {
-                home = new { lat = mylat, lon = mylon, call = call },
-                rx = rxPoints,
-                tx = txPoints,
-                showPaths = pathcheckBox.Checked
-            }));
-
-            json = json.Replace("\\", "\\\\").Replace("`", "\\`");
-
-            if (livecheckBox.Checked)
-            {
-                await RunJS($"window.wsprMap.centreOn({newlat}, {newlon}, 2)");
-            }
-
-            await RunJS($"window.wsprMap.loadData(`{json}`)");
-            loadingPanel.Visible = false;
-            panel1.Visible = false;
-        }*/
-
+        
         private async Task SendMapData()
         {
             string json = await Task.Run(() => JsonSerializer.Serialize(new
@@ -610,10 +538,12 @@ namespace Wspr_Map
 
             json = json.Replace("\\", "\\\\").Replace("`", "\\`");
             await RunJS($"window.wsprMap.loadData(`{json}`)");
-            await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
+            await RunJS($"window.wsprMap.centreOn({mylat.ToString(CultureInfo.InvariantCulture)}, {mylon.ToString(CultureInfo.InvariantCulture)}, 2)");
+            //await RunJS($"window.wsprMap.centreOn({mylat}, {mylon}, 2)");
 
             loadingPanel.Visible = false;
-            panel1.Visible = false;
+            panel1.Visible = false;            
+            countlabel.Text = $"{DateTime.UtcNow:HH:mm:ss} UTC  updated: {rxPoints.Count} RX, {txPoints.Count} TX";
         }
 
 
@@ -1654,8 +1584,10 @@ namespace Wspr_Map
 
         private async void recentrebutton_Click(object sender, EventArgs e)
         {
-            await filter_results();
+            //await filter_results();         
+            await RunJS($"window.wsprMap.centreOn({mylat.ToString(CultureInfo.InvariantCulture)}, {mylon.ToString(CultureInfo.InvariantCulture)}, 2)");
         }
+        
         /*private void recentre()
         {
             _ = RunJS($"window.wsprMap.centreOn(20, {mylon}, 2)");
@@ -1792,7 +1724,7 @@ namespace Wspr_Map
             }
         }
 
-        private async void timer1_Tick(object sender, EventArgs e)
+       /* private async void timer1_Tick(object sender, EventArgs e)
         {
             if (!autocheckBox.Checked || gettingData)
             {
@@ -1804,6 +1736,30 @@ namespace Wspr_Map
             await filter_results();
             //recentre();
 
+        }*/
+
+        private async void timer1_Tick(object sender, EventArgs e)
+        {
+            if (!autocheckBox.Checked || gettingData)
+                return;
+            gettingData = true;                 // same guard as Apply
+            panel1.Visible = true;
+            panel1.BringToFront();
+            panel1.Refresh();
+            try
+            {
+                await ClearMap();               // start from an empty map
+                await filter_results();
+            }
+            catch (Exception ex)
+            {
+                bottomlabel.Text = "Auto-track update failed: " + ex.Message;
+            }
+            finally
+            {
+                gettingData = false;            // never leave auto-track stuck
+                panel1.Visible = false;
+            }
         }
 
         private async void europeButton_Click(object sender, EventArgs e)
